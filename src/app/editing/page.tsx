@@ -42,10 +42,9 @@ export default function EditingPage() {
     setError("");
     
     const formData = new FormData();
-    formData.append("productId", selectedTask.id);
     formData.append("file", file);
 
-    const result = await uploadEditedAsset(formData);
+    const result = await uploadEditedAsset(selectedTask.id, formData);
     
     setIsUploading(false);
     if (result.success) {
@@ -229,6 +228,40 @@ export default function EditingPage() {
         .error-msg { margin-top: 1rem; color: #ef4444; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
         .spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        @media (max-width: 1200px) {
+          .editing-grid {
+            grid-template-columns: 1fr;
+          }
+          .task-list {
+            height: 500px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .editing-page {
+            padding: 1rem;
+            padding-top: 90px;
+          }
+          .page-header {
+            margin-bottom: 1.5rem;
+          }
+          .page-header h1 {
+            font-size: 1.8rem;
+          }
+          .editing-grid {
+            gap: 1.5rem;
+          }
+          .task-list {
+            height: 400px;
+          }
+          .editor-panel {
+            padding: 2rem 1.5rem;
+          }
+          .file-label-v2 {
+            padding: 1.2rem;
+          }
+        }
       `}</style>
     </RoleGuard>
   );

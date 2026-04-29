@@ -20,15 +20,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         .content-area {
           flex: 1;
-          margin-left: 320px; /* Sidebar width (280) + Margin (20*2) */
+          margin-left: 320px;
           padding: 2.5rem;
           min-height: 100vh;
-          transition: margin 0.3s ease;
+          transition: margin var(--transition-base);
         }
 
         @media (max-width: 1024px) {
           .content-area {
-            margin-left: 120px; /* Compact Sidebar width (80) + Margin (20*2) */
+            margin-left: 120px;
           }
         }
 
@@ -36,7 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .content-area {
             margin-left: 0;
             padding: 1.5rem;
-            padding-top: 5rem; /* Space for a top bar if we add one */
+            padding-top: 90px;
           }
         }
       `}</style>

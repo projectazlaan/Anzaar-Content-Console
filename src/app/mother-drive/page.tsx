@@ -12,13 +12,24 @@ import {
   Eye, 
   Calendar,
   Info,
-  ChevronRight
+  ChevronRight,
+  X
 } from "lucide-react";
 
 export default function MotherDrivePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [archiveData, setArchiveData] = useState<any[]>([]);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+
+  // Helper to get displayable image URL from Google Drive
+  const getDisplayUrl = (url: string | null, id?: string | null, size = 400) => {
+    if (!url && !id) return null;
+    if (id) return `/api/image?id=${id}`;
+    const match = url?.match(/[-\w]{25,}/);
+    if (match) return `/api/image?id=${match[0]}`;
+    return url || undefined;
+  };
 
   // Real-time listener for all products (Archive)
   useEffect(() => {
@@ -28,6 +39,16 @@ export default function MotherDrivePage() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Keyboard shortcuts for viewer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!viewingImage) return;
+      if (e.key === "Escape") setViewingImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [viewingImage]);
 
   const filteredData = archiveData.filter(item => 
     item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -110,9 +131,12 @@ export default function MotherDrivePage() {
                   </div>
                   
                   <div className="detail-hero">
-                    <div className="image-placeholder">
+                    <div className="image-placeholder" onClick={() => {
+                      const imgUrl = getDisplayUrl(selectedItem.designUrl, selectedItem.designId);
+                      if (imgUrl) setViewingImage(imgUrl);
+                    }}>
                       {selectedItem.designUrl ? (
-                        <img src={selectedItem.designUrl} alt="" className="preview-img" />
+                        <img src={getDisplayUrl(selectedItem.designUrl, selectedItem.designId) || ''} alt="" className="preview-img" />
                       ) : (
                         <Database size={48} />
                       )}
@@ -128,7 +152,7 @@ export default function MotherDrivePage() {
                         <span>View Design</span>
                       </a>
                     )}
-                    {selectedTask?.rawUrls?.map((url: string, i: number) => (
+                    {selectedItem.rawUrls?.map((url: string, i: number) => (
                       <a key={i} href={url} target="_blank" className="link-item glass">
                         <Eye size={16} />
                         <span>View Raw {i+1}</span>
@@ -164,6 +188,18 @@ export default function MotherDrivePage() {
           </div>
         </div>
       </DashboardLayout>
+
+      {/* Image Viewer Modal */}
+      {viewingImage && (
+        <div className="image-viewer-overlay" onClick={() => setViewingImage(null)}>
+          <div className="image-viewer-content" onClick={e => e.stopPropagation()}>
+            <button className="viewer-close" onClick={() => setViewingImage(null)}>
+              <X size={24} />
+            </button>
+            <img src={viewingImage} alt="Preview" />
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .mother-drive-page {
@@ -229,6 +265,44 @@ export default function MotherDrivePage() {
           grid-template-columns: 1fr 400px;
           gap: 2rem;
           align-items: start;
+        }
+
+        @media (max-width: 1200px) {
+          .drive-grid {
+            grid-template-columns: 1fr;
+          }
+          .details-panel {
+            position: sticky;
+            top: 90px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+          }
+          .action-row {
+            width: 100%;
+          }
+          .btn-export {
+            width: 100%;
+            justify-content: center;
+          }
+          .search-filter-section {
+            padding: 1rem;
+          }
+          .archive-table {
+            font-size: 0.85rem;
+          }
+          .archive-table th,
+          .archive-table td {
+            padding: 0.8rem;
+          }
+          .icon-box {
+            display: none;
+          }
         }
 
         .table-container {
@@ -331,12 +405,15 @@ export default function MotherDrivePage() {
           margin-bottom: 2.5rem;
         }
 
-        .preview-img {
+                .preview-img {
           width: 100%;
           height: 200px;
-          object-fit: cover;
+          object-fit: contain;
           border-radius: 15px;
           margin-bottom: 1.5rem;
+          background: linear-gradient(135deg, #1e293b 25%, transparent 25%) -50px 0, linear-gradient(225deg, #1e293b 25%, transparent 25%) -50px 0, linear-gradient(315deg, #1e293b 25%, transparent 25%), linear-gradient(45deg, #1e293b 25%, transparent 25%);
+          background-size: 20px 20px;
+          background-color: #0f172a;
         }
 
         .asset-links {
@@ -404,7 +481,47 @@ export default function MotherDrivePage() {
           .drive-grid {
             grid-template-columns: 1fr;
           }
+          .details-panel {
+            position: sticky;
+            top: 90px;
+          }
         }
+
+        @media (max-width: 768px) {
+          .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+          }
+          .action-row {
+            width: 100%;
+          }
+          .btn-export {
+            width: 100%;
+            justify-content: center;
+          }
+          .search-filter-section {
+            padding: 1rem;
+          }
+          .archive-table {
+            font-size: 0.85rem;
+          }
+          .archive-table th,
+          .archive-table td {
+            padding: 0.8rem;
+          }
+          .icon-box {
+            display: none;
+          }
+        }
+        
+        /* Image Viewer Styles */
+        .image-viewer-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.95); backdrop-filter: blur(25px); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .image-viewer-content { position: relative; max-width: 90vw; max-height: 90vh; display: flex; align-items: center; justify-content: center; }
+        .image-viewer-content img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 16px; box-shadow: 0 50px 150px rgba(0,0,0,0.9); animation: zoomIn 0.3s ease-out; }
+        .viewer-close { position: absolute; top: -50px; right: 0; width: 50px; height: 50px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 1px solid rgba(255,255,255,0.2); transition: all 0.3s; cursor: pointer; }
+        .viewer-close:hover { background: rgba(239, 68, 68, 0.3); border-color: #ef4444; transform: scale(1.1); }
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
       `}</style>
     </RoleGuard>
   );

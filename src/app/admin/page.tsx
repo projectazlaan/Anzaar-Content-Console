@@ -26,24 +26,36 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Security Gate: Only Super Admins
-  if (currentUser?.role !== "admin") {
-    return (
-      <div className="forbidden-page flex-center">
-        <ShieldAlert size={64} className="text-danger" />
-        <h1>Access Forbidden</h1>
-        <p>You do not have administrative privileges to access this panel.</p>
-      </div>
-    );
-  }
-
   useEffect(() => {
+    if (currentUser?.role !== "admin") return;
+    
     const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
+
+  // Security Gate: Only Super Admins (Moved after hooks)
+  if (currentUser?.role !== "admin") {
+    return (
+      <DashboardLayout>
+        <div className="forbidden-page" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '80vh',
+          textAlign: 'center',
+          gap: '1rem'
+        }}>
+          <ShieldAlert size={64} style={{ color: '#ef4444' }} />
+          <h1 style={{ fontSize: '2rem', color: 'white' }}>Access Forbidden</h1>
+          <p style={{ color: 'rgba(255,255,255,0.5)' }}>You do not have administrative privileges to access this panel.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const handleUpdate = async (uid: string, role: string, permissions: any) => {
     setIsUpdating(true);
@@ -208,11 +220,11 @@ export default function AdminPage() {
         }
 
         .role-select {
-          background: rgba(255, 255, 255, 0.05);
+          background: var(--bg-input);
           border: 1px solid var(--border);
           padding: 0.5rem 1rem;
           border-radius: 8px;
-          color: white;
+          color: var(--text-main);
           font-size: 0.9rem;
           outline: none;
         }
@@ -262,6 +274,59 @@ export default function AdminPage() {
 
         .forbidden-page h1 { font-size: 3rem; }
         .forbidden-page p { color: var(--text-dim); font-size: 1.2rem; }
+
+        @media (max-width: 1200px) {
+          .user-table {
+            font-size: 0.9rem;
+          }
+          .user-table th,
+          .user-table td {
+            padding: 1rem;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .admin-page {
+            padding: 1rem;
+            padding-top: 90px;
+          }
+          .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1.5rem;
+          }
+          .stats-row {
+            width: 100%;
+          }
+          .stat-pill {
+            width: 100%;
+            justify-content: center;
+          }
+          .user-registry {
+            overflow-x: auto;
+          }
+          .user-table {
+            min-width: 800px;
+          }
+          .user-cell {
+            gap: 0.8rem;
+          }
+          .avatar {
+            width: 35px;
+            height: 35px;
+            font-size: 0.9rem;
+          }
+          .info strong {
+            font-size: 0.85rem;
+          }
+          .info span {
+            font-size: 0.75rem;
+          }
+          .role-select {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+          }
+        }
       `}</style>
     </DashboardLayout>
   );
