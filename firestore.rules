@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) ?
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role : 'pending';
+    }
+
+    function isAdmin() {
+      return isAuth() && getUserRole() == 'admin';
+    }
+
+    function hasRole(role) {
+      return isAuth() && getUserRole() == role;
+    }
+
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow create: if isAuth() && request.auth.uid == userId;
+      allow read: if isAuth() && (isOwner(userId) || (request.auth.uid != userId && isAdmin()));
+      allow update: if isAuth() && (isOwner(userId) || (request.auth.uid != userId && isAdmin()));
+      allow delete: if isAdmin();
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (hasRole('designer') || isAdmin());
+      allow update: if isAuth();
+      allow delete: if isAdmin();
+    }
+
+    // Categories collection
+    match /categories/{categoryId} {
+      allow read: if isAuth();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // instruction_presets
+    match /instruction_presets/{docId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (hasRole('director') || isAdmin());
+      allow delete: if isAuth() && (hasRole('director') || isAdmin());
+    }
+
+    // master_templates
+    match /master_templates/{docId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (hasRole('director') || isAdmin());
+      allow delete: if isAuth() && (hasRole('director') || isAdmin());
+    }
+
+    // settings
+    match /settings/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // audit_logs
+    match /audit_logs/{logId} {
+      allow create: if isAuth();
+      allow read: if isAdmin();
+    }
+  }
+}
