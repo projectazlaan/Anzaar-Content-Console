@@ -587,3 +587,101 @@ export async function getUserData(uid: string) {
     return { success: false, error: error.message };
   }
 }
+
+export async function createNotification(data: { userId: string; title: string; message: string; type: string; link?: string }) {
+  try {
+    await addDoc(collection(db, "notifications"), {
+      userId: data.userId,
+      title: data.title,
+      message: data.message,
+      type: data.type || "info",
+      link: data.link || "",
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error creating notification:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getProductHistory(productId: string) {
+  try {
+    const q = query(
+      collection(db, "audit_logs"),
+      where("productId", "==", productId),
+      orderBy("createdAt", "desc"),
+      limit(20)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error: any) {
+    console.error("Error fetching product history:", error);
+    return [];
+  }
+}
+
+export async function getDesignerRequests() {
+  try {
+    const q = query(collection(db, "designer_requests"), orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error: any) {
+    console.error("Error fetching designer requests:", error);
+    return [];
+  }
+}
+
+export async function updateCategory(id: string, name: string) {
+  try {
+    await updateDoc(doc(db, "categories", id), { name, updatedAt: serverTimestamp() });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function bulkUpdateProductStatus(productIds: string[], status: string) {
+  try {
+    const promises = productIds.map(id => {
+      const productRef = doc(db, "products", id);
+      return updateDoc(productRef, {
+        status: status,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    await Promise.all(promises);
+    createNotif({ title: "Bulk Status Update", message: `${productIds.length} products updated to ${status}`, type: "info", actionType: "bulk_status_update" });
+    return { success: true, count: productIds.length };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateDesignerRequestStatus(requestId: string, status: string) {
+  try {
+    await updateDoc(doc(db, "designer_requests", requestId), { status, updatedAt: serverTimestamp() });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function createDesignerRequest(data: { productId: string; productName: string; productThumb: string; type: string; instructions: string; createdBy: string }) {
+  try {
+    await addDoc(collection(db, "designer_requests"), {
+      productId: data.productId,
+      productName: data.productName,
+      productThumb: data.productThumb,
+      type: data.type,
+      instructions: data.instructions,
+      createdBy: data.createdBy,
+      status: "pending",
+      createdAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
