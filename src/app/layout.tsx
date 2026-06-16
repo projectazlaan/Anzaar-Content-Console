@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
-import { AuthProvider } from "@/lib/AuthContext";
+import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Anzaar Content Consol | Production Flow",
@@ -29,11 +29,11 @@ export default function RootLayout({
             `,
           }}
         />
-        <AuthProvider>
+        <Providers>
           <div className="main-wrapper">
             {children}
           </div>
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

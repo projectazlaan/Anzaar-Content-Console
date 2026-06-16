@@ -456,7 +456,7 @@ export default function DesignerPage() {
                               const imgUrl = getDisplayUrl(p.thumbnailUrl) || getDisplayUrl(p.mainDesignUrl || p.designUrl, p.mainDesignId || p.designId, 800);
                               if (imgUrl) setViewingImage(imgUrl);
                             }}>
-                              <img src={getDisplayUrl(p.thumbnailUrl) || getDisplayUrl(p.mainDesignUrl || p.designUrl, p.mainDesignId || p.designId, 80)} alt="" />
+                              <img src={getDisplayUrl(p.thumbnailUrl) || getDisplayUrl(p.mainDesignUrl || p.designUrl, p.mainDesignId || p.designId, 80) || undefined} alt="" />
                             </div>
                             <div className="row-content">
                               <div className="row-main">

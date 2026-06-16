@@ -20,7 +20,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         .content-area {
           flex: 1;
-          margin-left: 320px;
+          margin-left: 300px;
           padding: 2.5rem;
           min-height: 100vh;
           transition: margin var(--transition-base);
@@ -28,7 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         @media (max-width: 1024px) {
           .content-area {
-            margin-left: 120px;
+            margin-left: 80px;
           }
         }
 

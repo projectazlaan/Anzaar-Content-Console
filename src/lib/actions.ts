@@ -19,6 +19,21 @@ import {
 import { uploadFileToDrive, getDriveImageUrl, getOrCreateFolder } from "./drive";
 import { Readable } from "stream";
 
+async function createNotif(data: { title: string; message: string; type?: string; actionType?: string }) {
+  try {
+    await addDoc(collection(db, "notifications"), {
+      title: data.title,
+      message: data.message,
+      type: data.type || "info",
+      actionType: data.actionType || "general",
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.error("Failed to create notification:", e);
+  }
+}
+
 // --- PRODUCT FLOW ACTIONS ---
 
 export async function createProduct(formData: FormData) {
@@ -51,6 +66,8 @@ export async function createProduct(formData: FormData) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    createNotif({ title: "New Product Created", message: `${name} has been created and is pending direction`, type: "success", actionType: "product_created" });
 
     return { success: true, id: docRef.id };
   } catch (error: any) {
@@ -125,6 +142,8 @@ export async function createBulkProducts(formData: FormData) {
 
     const docRef = await addDoc(collection(db, "products"), productData);
     
+    createNotif({ title: "Bulk Products Created", message: `${name} created with ${uploadedFiles.length} variations`, type: "success", actionType: "bulk_created" });
+    
     return { success: true, id: docRef.id, variationCount: uploadedFiles.length };
   } catch (error: any) {
     console.error("Error creating bulk products:", error);
@@ -140,6 +159,7 @@ export async function submitDirection(productId: string, shootDir: string, editD
       directions: { shoot: shootDir, edit: editDir },
       updatedAt: serverTimestamp(),
     });
+    createNotif({ title: "Direction Submitted", message: `Directions provided, status set to Pending Shoot`, type: "info", actionType: "direction_submitted" });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -153,6 +173,7 @@ export async function markAsShot(productId: string) {
       status: "Pending Selection",
       updatedAt: serverTimestamp(),
     });
+    createNotif({ title: "Marked as Shot", message: `Product status set to Pending Selection`, type: "success", actionType: "marked_shot" });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -191,6 +212,8 @@ export async function uploadRawAssets(productId: string, formData: FormData) {
       updatedAt: serverTimestamp(),
     });
 
+    createNotif({ title: "Raw Assets Uploaded", message: `${files.length} raw asset(s) uploaded`, type: "success", actionType: "raw_uploaded" });
+
     return { success: true, count: files.length };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -224,6 +247,8 @@ export async function uploadEditedAsset(productId: string, formData: FormData) {
       updatedAt: serverTimestamp(),
     });
 
+    createNotif({ title: "Edited Asset Uploaded", message: `Edited file uploaded, status set to Pending Review`, type: "success", actionType: "edit_uploaded" });
+
     return { success: true, url: result.webViewLink };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -237,6 +262,7 @@ export async function submitForReview(productId: string) {
       status: "Pending Review",
       updatedAt: serverTimestamp(),
     });
+    createNotif({ title: "Submitted for Review", message: `Product submitted for review`, type: "info", actionType: "submitted_review" });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -246,6 +272,7 @@ export async function submitForReview(productId: string) {
 export async function deleteProduct(productId: string) {
   try {
     await deleteDoc(doc(db, "products", productId));
+    createNotif({ title: "Product Deleted", message: `Product has been removed`, type: "warning", actionType: "product_deleted" });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -418,6 +445,7 @@ export async function submitBulkDirections(productIds: string[], shootDir: strin
     });
     
     await Promise.all(promises);
+    createNotif({ title: "Bulk Directions Submitted", message: `Directions provided for ${productIds.length} products`, type: "info", actionType: "bulk_directions" });
     return { success: true, count: productIds.length };
   } catch (error: any) {
     console.error("Error submitting bulk directions:", error);
@@ -506,6 +534,8 @@ export async function submitSelection(productId: string, selectedAssets: Record<
       updatedAt: serverTimestamp(),
     });
     
+    createNotif({ title: "Selection Submitted", message: `Assets selected with crop ratios, status set to Pending Edit`, type: "success", actionType: "selection_submitted" });
+    
     return { success: true };
   } catch (error: any) {
     console.error("Submit selection error:", error);
@@ -520,6 +550,7 @@ export async function approveProduct(productId: string) {
       status: "Completed",
       updatedAt: serverTimestamp(),
     });
+    createNotif({ title: "Product Approved", message: `Product has been completed and approved`, type: "success", actionType: "product_approved" });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -537,6 +568,7 @@ export async function submitBulkStatusUpdate(productIds: string[], targetStatus:
     });
     
     await Promise.all(promises);
+    createNotif({ title: "Bulk Status Update", message: `${productIds.length} products updated to ${targetStatus}`, type: "info", actionType: "bulk_status" });
     return { success: true, count: productIds.length };
   } catch (error: any) {
     return { success: false, error: error.message };

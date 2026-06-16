@@ -21,11 +21,9 @@ import {
   Zap,
   ArrowLeft,
   ArrowRight,
-  Bell,
-  Search,
-  Moon,
-  Sun
+  Moon, Sun
 } from "lucide-react";
+import NotificationDropdown from "./NotificationDropdown";
 
 const navItems = [
   { id: "designer", name: "Designer", icon: Palette, href: "/designer", adminOnly: false, gradient: "from-indigo-500 to-purple-600" },
@@ -94,7 +92,6 @@ export default function Sidebar() {
         <aside className="sidebar-premium">
           {/* Top Section */}
           <div className="sidebar-top">
-            {/* Brand */}
             <div className="brand-section" onClick={() => router.push("/")}>
               <div className="brand-logo">
                 <div className="logo-ring">
@@ -108,19 +105,6 @@ export default function Sidebar() {
                 </div>
               )}
             </div>
-
-            {/* Collapse Toggle */}
-            <button 
-              className="collapse-btn"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              onMouseEnter={() => setActiveTooltip('collapse')}
-              onMouseLeave={() => setActiveTooltip(null)}
-            >
-              {isCollapsed ? <ArrowRight size={18} /> : <ArrowLeft size={18} />}
-              {activeTooltip === 'collapse' && !isCollapsed && (
-                <span className="tooltip">Collapse</span>
-              )}
-            </button>
           </div>
 
           {/* Navigation */}
@@ -199,9 +183,7 @@ export default function Sidebar() {
               </div>
               
               {/* Notification Button */}
-              <button className="bottom-action-btn" title="Notifications">
-                <Bell size={18} />
-              </button>
+              <NotificationDropdown />
               
               {/* Theme Button */}
               <button className="bottom-action-btn" onClick={toggleTheme} title={isDarkTheme ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
@@ -215,6 +197,22 @@ export default function Sidebar() {
             </div>
           </div>
         </aside>
+
+        {/* Collapse Toggle */}
+        <button 
+          className="collapse-btn"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <span className="collapse-track">
+            <span className="collapse-dot" />
+            <span className="collapse-dot" />
+            <span className="collapse-dot" />
+          </span>
+          <span className="collapse-icon">
+            {isCollapsed ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
+          </span>
+        </button>
       </div>
 
       <style jsx global>{`
@@ -374,39 +372,105 @@ export default function Sidebar() {
 
         .collapse-btn {
           position: absolute;
-          right: -12px;
           top: 28px;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          background: #1e293b;
-          border: 2px solid #0f1629;
-          color: rgba(255, 255, 255, 0.6);
+          left: 290px;
+          width: 20px;
+          height: 44px;
+          border-radius: 10px;
+          background: rgba(30, 41, 59, 0.5);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.5);
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: all 0.3s ease;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
           z-index: 10;
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
-        [data-theme="light"] .collapse-btn {
-          background: #e2e8f0;
-          border: 2px solid #f1f5f9;
-          color: rgba(15, 23, 42, 0.6);
+        .collapse-track {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 3px;
+          transition: opacity 0.3s ease;
+        }
+
+        .collapse-dot {
+          width: 3px;
+          height: 3px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.4);
+          transition: all 0.3s ease;
+        }
+
+        .collapse-icon {
+          position: absolute;
+          opacity: 0;
+          transform: scale(0.5);
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .collapse-btn:hover {
-          background: #334155;
+          width: 32px;
+          left: 278px;
+          background: rgba(30, 41, 59, 0.9);
+          border-color: rgba(10, 132, 255, 0.3);
           color: white;
-          transform: scale(1.1);
+          box-shadow: 0 4px 16px rgba(10, 132, 255, 0.15);
+        }
+
+        .collapse-btn:hover .collapse-track {
+          opacity: 0;
+        }
+
+        .collapse-btn:hover .collapse-icon {
+          opacity: 1;
+          transform: scale(1);
+        }
+
+        .collapsed .collapse-btn {
+          left: 70px;
+          background: rgba(10, 132, 255, 0.15);
+          border-color: rgba(10, 132, 255, 0.2);
+        }
+
+        .collapsed .collapse-btn:hover {
+          left: 58px;
+          background: rgba(10, 132, 255, 0.25);
+          border-color: rgba(10, 132, 255, 0.4);
+          box-shadow: 0 4px 20px rgba(10, 132, 255, 0.25);
+        }
+
+        [data-theme="light"] .collapse-btn {
+          background: rgba(226, 232, 240, 0.6);
+          border-color: rgba(0, 0, 0, 0.08);
+          color: rgba(15, 23, 42, 0.5);
+        }
+
+        [data-theme="light"] .collapse-dot {
+          background: rgba(15, 23, 42, 0.3);
         }
 
         [data-theme="light"] .collapse-btn:hover {
-          background: #cbd5e1;
+          background: rgba(203, 213, 225, 0.9);
+          border-color: rgba(10, 132, 255, 0.3);
           color: #0f172a;
         }
 
+        [data-theme="light"] .collapsed .collapse-btn {
+          background: rgba(10, 132, 255, 0.1);
+          border-color: rgba(10, 132, 255, 0.2);
+        }
+
+        [data-theme="light"] .collapsed .collapse-btn:hover {
+          background: rgba(10, 132, 255, 0.2);
+          border-color: rgba(10, 132, 255, 0.3);
+        }
 
 
         .sidebar-navigation {
