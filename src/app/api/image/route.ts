@@ -9,29 +9,46 @@ export async function GET(request: Request) {
     return new NextResponse("Missing file ID", { status: 400 });
   }
 
+  // Handle cases where a full URL might be passed as an ID
+  const cleanId = fileId.match(/[-\w]{25,}/)?.[0] || fileId;
+
   try {
     const drive = await getDriveService();
-    
+
     // Fetch file stream from Google Drive
     const response = await drive.files.get(
-      { fileId, alt: "media" },
+      { fileId: cleanId, alt: "media", supportsAllDrives: true },
       { responseType: "stream" }
     );
 
     const headers = new Headers();
-    // Cache the image in the browser for 1 day
     headers.set("Cache-Control", "public, max-age=86400");
-    
-    // Set content type from Drive response
+
     if (response.headers["content-type"]) {
       headers.set("Content-Type", response.headers["content-type"]);
     } else {
-      headers.set("Content-Type", "image/jpeg"); // Fallback
+      headers.set("Content-Type", "image/jpeg");
     }
 
-    return new NextResponse(response.data as any, { headers });
-  } catch (error) {
-    console.error("Image proxy error:", error);
-    return new NextResponse("Error fetching image from Drive", { status: 500 });
+    // Use a more efficient way to stream the response
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of response.data as any) {
+            controller.enqueue(chunk);
+          }
+          controller.close();
+        } catch (e) {
+          controller.error(e);
+        }
+      },
+    });
+
+    return new NextResponse(stream, { headers });
+  } catch (error: any) {
+    console.error("Image proxy error for ID:", cleanId, error);
+    const status = error.status || error.code || 500;
+    const message = error.message || "Unknown error";
+    return new NextResponse(`Error fetching image: ${message}`, { status: typeof status === 'number' ? status : 500 });
   }
 }

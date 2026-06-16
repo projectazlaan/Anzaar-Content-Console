@@ -32,6 +32,11 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [resetSent, setResetSent] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -58,42 +63,41 @@ export default function LoginPage() {
         const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
         console.log('Login successful', userCredential.user.uid);
         
-        // Fetch user metadata via server action
-        const result = await getUserData(userCredential.user.uid);
-        console.log('User data result', result);
+        const userDocRef = doc(db, "users", userCredential.user.uid);
+        const userDoc = await getDoc(userDocRef);
+        console.log('User data result', userDoc.exists());
         
-        if (result.success) {
+        if (userDoc.exists()) {
           console.log('Redirecting to home');
-          // Use window.location for more reliable redirect
-          window.location.href = "/";
-        } else if (result.error === "User data not found") {
-          // Auto-bootstrap if account exists in Auth but missing in Firestore
-          console.log('Initializing user account...');
-          await initializeUserAccount(userCredential.user.uid, formData.email);
           window.location.href = "/";
         } else {
-          setError(result.error || "Account not fully set up. Please contact admin.");
+          console.log('Initializing user account via server action...');
+          const initResult = await initializeUserAccount(userCredential.user.uid, formData.email);
+          if (initResult.success) {
+            window.location.href = "/";
+          } else {
+            setError(initResult.error || "Failed to initialize user account");
+          }
         }
       } else {
         console.log('Creating new account...');
         const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
         console.log('Account created', userCredential.user.uid);
         
-        // Initialize user account via server action
-        const result = await initializeUserAccount(userCredential.user.uid, formData.email);
-        console.log('Initialization result', result);
+        console.log('Initializing user account via server action...');
+        const initResult = await initializeUserAccount(userCredential.user.uid, formData.email);
         
-        if (result.success) {
-          console.log('Is first user?', result.isFirstUser);
-          if (result.isFirstUser) {
-            alert("🎉 SUCCESS! You are the first user and have been granted Super Admin status!\n\nYou can now access all features and manage users.");
+        if (initResult.success) {
+          if (initResult.isFirstUser) {
+            alert("✨ Welcome! You are the first user, so you have been automatically approved as Super Admin. Redirecting to console...");
             window.location.href = "/";
           } else {
-            alert("⏳ Account created successfully!\n\nYour account is pending admin approval. Please contact the administrator to activate your account.\n\nNote: If you are the first user and seeing this, please delete existing users from Firebase Console and try again.");
+            alert("⏳ Account created successfully!\n\nYour account is pending admin approval. Please contact the administrator to activate your account.");
             setIsLogin(true);
+            setFormData({ ...formData, password: "" });
           }
         } else {
-          setError(result.error || "Failed to initialize account. Please try again.");
+          setError(initResult.error || "Failed to initialize user account");
         }
       }
     } catch (err: any) {
@@ -120,16 +124,16 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="login-container-v2">
-      {/* Animated Background */}
-      <div className="login-bg-v2">
-        <div className="bg-grid"></div>
-        <div className="bg-gradient-orb orb-1"></div>
-        <div className="bg-gradient-orb orb-2"></div>
-        <div className="bg-gradient-orb orb-3"></div>
-        <div className="floating-particles">
-          {[...Array(20)].map((_, i) => (
-            <div key={i} className="particle" style={{
+    <main className="lg-root">
+      {/* Ambient Background */}
+      <div className="lg-bg" aria-hidden="true">
+        <div className="lg-grid-bg" />
+        <div className="lg-orb lg-orb-1" />
+        <div className="lg-orb lg-orb-2" />
+        <div className="lg-orb lg-orb-3" />
+        <div className="lg-particles">
+          {isMounted && [...Array(20)].map((_, i) => (
+            <div key={i} className="lg-particle" style={{
               left: `${Math.random() * 100}%`,
               animationDelay: `${Math.random() * 5}s`,
               animationDuration: `${5 + Math.random() * 10}s`
@@ -138,97 +142,97 @@ export default function LoginPage() {
         </div>
       </div>
       
-      <div className="login-wrapper-v2">
+      <div className="lg-wrapper">
         {/* Left Side - Branding */}
-        <div className="login-branding-v2">
-          <div className="brand-content">
-            <div className="brand-logo">
-              <div className="logo-icon-wrapper">
+        <div className="lg-brand">
+          <div className="lg-brand-content">
+            <div className="lg-logo">
+              <div className="lg-logo-icon">
                 <ShieldCheck size={48} />
               </div>
-              <Sparkles size={24} className="sparkle-icon" />
+              <Sparkles size={24} className="lg-logo-sparkle" />
             </div>
             
-            <h1 className="brand-title">
+            <h1 className="lg-brand-title">
               ANZAAR
-              <span className="title-accent">CONTENT CONSOL</span>
+              <span className="lg-brand-accent">CONTENT CONSOL</span>
             </h1>
             
-            <p className="brand-description">
+            <p className="lg-brand-desc">
               Enterprise-grade content production pipeline management system
             </p>
 
-            <div className="brand-features">
-              <div className="feature-item">
+            <div className="lg-features">
+              <div className="lg-feature">
                 <Zap size={20} />
                 <span>Lightning Fast Workflow</span>
               </div>
-              <div className="feature-item">
+              <div className="lg-feature">
                 <Globe size={20} />
                 <span>Cloud-Powered Infrastructure</span>
               </div>
-              <div className="feature-item">
+              <div className="lg-feature">
                 <ShieldCheck size={20} />
                 <span>Enterprise Security</span>
               </div>
             </div>
 
-            <div className="brand-stats">
-              <div className="stat-item">
-                <div className="stat-number">6+</div>
-                <div className="stat-label">Production Roles</div>
+            <div className="lg-stats">
+              <div className="lg-stat">
+                <div className="lg-stat-num">6+</div>
+                <div className="lg-stat-label">Production Roles</div>
               </div>
-              <div className="stat-divider"></div>
-              <div className="stat-item">
-                <div className="stat-number">100%</div>
-                <div className="stat-label">Cloud Based</div>
+              <div className="lg-stat-divider" />
+              <div className="lg-stat">
+                <div className="lg-stat-num">100%</div>
+                <div className="lg-stat-label">Cloud Based</div>
               </div>
-              <div className="stat-divider"></div>
-              <div className="stat-item">
-                <div className="stat-number">24/7</div>
-                <div className="stat-label">Real-time Sync</div>
+              <div className="lg-stat-divider" />
+              <div className="lg-stat">
+                <div className="lg-stat-num">24/7</div>
+                <div className="lg-stat-label">Real-time Sync</div>
               </div>
             </div>
           </div>
 
-          <div className="brand-footer">
+          <div className="lg-brand-footer">
             <p>© 2026 Anzaar Content Consol. All rights reserved.</p>
           </div>
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="login-form-section-v2">
-          <div className="form-card-v2 glass-strong">
-            <div className="form-header-v2">
-              <div className="header-badge">
+        <div className="lg-form-section">
+          <div className="lg-form-card">
+            <div className="lg-form-header">
+              <div className="lg-badge">
                 {isLogin ? <ArrowRight size={16} /> : <Sparkles size={16} />}
                 <span>{isLogin ? "Welcome Back" : "Get Started"}</span>
               </div>
-              <h2>{isLogin ? "Sign in to your account" : "Create your account"}</h2>
-              <p>{isLogin ? "Enter your credentials to access the production console" : "Register to join the production pipeline"}</p>
+              <h2 className="lg-form-title">{isLogin ? "Sign in to your account" : "Create your account"}</h2>
+              <p className="lg-form-subtitle">{isLogin ? "Enter your credentials to access the production console" : "Register to join the production pipeline"}</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="login-form-v2">
-              <div className="input-group-v2">
-                <label className="input-label-v2">
+            <form onSubmit={handleSubmit} className="lg-form">
+              <div className="lg-field">
+                <label className="lg-label">
                   <Mail size={16} />
                   <span>Email Address</span>
                 </label>
-                <div className="input-wrapper-v2">
+                <div className="lg-input-wrap">
                   <input 
                     type="email" 
                     placeholder="name@anzaar.com" 
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    className="input-field-v2"
+                    className="lg-input"
                   />
                 </div>
               </div>
 
-              <div className="input-group-v2">
-                <div className="label-row-v2">
-                  <label className="input-label-v2">
+              <div className="lg-field">
+                <div className="lg-label-row">
+                  <label className="lg-label">
                     <Lock size={16} />
                     <span>Password</span>
                   </label>
@@ -236,24 +240,24 @@ export default function LoginPage() {
                     <button 
                       type="button" 
                       onClick={handleForgotPassword} 
-                      className="forgot-link-v2"
+                      className="lg-forgot"
                     >
                       Forgot password?
                     </button>
                   )}
                 </div>
-                <div className="input-wrapper-v2">
+                <div className="lg-input-wrap">
                   <input 
                     type={showPassword ? "text" : "password"} 
                     placeholder="Enter your password" 
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
-                    className="input-field-v2"
+                    className="lg-input"
                   />
                   <button 
                     type="button" 
-                    className="password-toggle-v2"
+                    className="lg-toggle-pw"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -262,14 +266,14 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <div className="error-alert-v2">
+                <div className="lg-alert lg-alert-error">
                   <AlertCircle size={18} />
                   <span>{error}</span>
                 </div>
               )}
 
               {resetSent && (
-                <div className="success-alert-v2">
+                <div className="lg-alert lg-alert-success">
                   <Sparkles size={18} />
                   <span>Reset link sent to your email. Check your inbox!</span>
                 </div>
@@ -277,12 +281,13 @@ export default function LoginPage() {
 
               <button 
                 type="submit" 
-                className="submit-btn-v2"
+                className="lg-submit"
                 disabled={isLoading}
               >
+                <div className="lg-submit-bg" />
                 {isLoading ? (
                   <>
-                    <Loader2 className="spinner" size={20} />
+                    <Loader2 className="lg-spinner" size={20} />
                     <span>{isLogin ? "Signing in..." : "Creating account..."}</span>
                   </>
                 ) : (
@@ -294,8 +299,8 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="form-footer-v2">
-              <div className="divider-v2">
+            <div className="lg-form-footer">
+              <div className="lg-divider">
                 <span>or</span>
               </div>
               <p>
@@ -311,17 +316,16 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Debug Info Panel */}
             {showDebug && (
-              <div className="debug-panel">
-                <div className="debug-header">
+              <div className="lg-debug">
+                <div className="lg-debug-head">
                   <Info size={16} />
                   <span>Debug Info</span>
                 </div>
-                <div className="debug-content">
+                <div className="lg-debug-body">
                   <p><strong>First User = Super Admin</strong></p>
                   <p>If you're seeing "Pending Approval" on signup, it means there are already users in the database.</p>
-                  <p className="debug-step">✅ To become Super Admin:</p>
+                  <p className="lg-debug-step">✅ To become Super Admin:</p>
                   <ol>
                     <li>Go to <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
                     <li>Open Firestore Database</li>
@@ -337,44 +341,46 @@ export default function LoginPage() {
       </div>
 
       <style jsx>{`
-        .login-container-v2 {
+        .lg-root {
           min-height: 100vh;
           position: relative;
           overflow: hidden;
           background: var(--bg-deep);
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--text-main);
         }
 
-        /* Animated Background */
-        .login-bg-v2 {
+        /* ── Animated Background ── */
+        .lg-bg {
           position: fixed;
           inset: 0;
           z-index: 0;
         }
 
-        .bg-grid {
+        .lg-grid-bg {
           position: absolute;
           inset: 0;
           background-image: 
             linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
             linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
           background-size: 60px 60px;
-          animation: gridMove 20s linear infinite;
+          animation: lg-grid-move 20s linear infinite;
         }
 
-        @keyframes gridMove {
+        @keyframes lg-grid-move {
           0% { transform: translate(0, 0); }
           100% { transform: translate(60px, 60px); }
         }
 
-        .bg-gradient-orb {
+        .lg-orb {
           position: absolute;
           border-radius: 50%;
           filter: blur(120px);
           opacity: 0.4;
-          animation: orbFloat 15s ease-in-out infinite;
+          animation: lg-orb-float 15s ease-in-out infinite;
         }
 
-        .orb-1 {
+        .lg-orb-1 {
           width: 600px;
           height: 600px;
           background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -383,7 +389,7 @@ export default function LoginPage() {
           animation-delay: 0s;
         }
 
-        .orb-2 {
+        .lg-orb-2 {
           width: 500px;
           height: 500px;
           background: linear-gradient(135deg, var(--secondary), var(--accent));
@@ -392,7 +398,7 @@ export default function LoginPage() {
           animation-delay: 5s;
         }
 
-        .orb-3 {
+        .lg-orb-3 {
           width: 400px;
           height: 400px;
           background: linear-gradient(135deg, var(--primary), var(--info));
@@ -403,19 +409,19 @@ export default function LoginPage() {
           opacity: 0.2;
         }
 
-        @keyframes orbFloat {
+        @keyframes lg-orb-float {
           0%, 100% { transform: translate(0, 0) scale(1); }
           33% { transform: translate(30px, -30px) scale(1.1); }
           66% { transform: translate(-20px, 20px) scale(0.9); }
         }
 
-        .floating-particles {
+        .lg-particles {
           position: absolute;
           inset: 0;
           overflow: hidden;
         }
 
-        .particle {
+        .lg-particle {
           position: absolute;
           bottom: -10px;
           width: 4px;
@@ -423,11 +429,11 @@ export default function LoginPage() {
           background: var(--primary);
           border-radius: 50%;
           opacity: 0;
-          animation: particleRise 10s ease-in infinite;
+          animation: lg-particle-rise 10s ease-in infinite;
           box-shadow: 0 0 10px var(--primary-glow);
         }
 
-        @keyframes particleRise {
+        @keyframes lg-particle-rise {
           0% {
             opacity: 0;
             transform: translateY(0) scale(0);
@@ -444,8 +450,8 @@ export default function LoginPage() {
           }
         }
 
-        /* Main Layout */
-        .login-wrapper-v2 {
+        /* ── Main Layout ── */
+        .lg-wrapper {
           position: relative;
           z-index: 1;
           display: grid;
@@ -453,29 +459,29 @@ export default function LoginPage() {
           min-height: 100vh;
         }
 
-        /* Left Side - Branding */
-        .login-branding-v2 {
+        /* ── Left Side - Branding ── */
+        .lg-brand {
           display: flex;
           flex-direction: column;
           justify-content: space-between;
           padding: 4rem;
           background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(168, 85, 247, 0.05));
           border-right: 1px solid var(--border);
-          animation: fadeInLeft 0.8s ease-out;
+          animation: lg-fade-left 0.8s ease-out;
         }
 
-        .brand-content {
+        .lg-brand-content {
           max-width: 600px;
         }
 
-        .brand-logo {
+        .lg-logo {
           position: relative;
           display: inline-flex;
           align-items: center;
           margin-bottom: 2.5rem;
         }
 
-        .logo-icon-wrapper {
+        .lg-logo-icon {
           width: 90px;
           height: 90px;
           background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -485,28 +491,28 @@ export default function LoginPage() {
           justify-content: center;
           color: white;
           box-shadow: 0 20px 60px var(--primary-glow);
-          animation: logoGlow 3s ease-in-out infinite;
+          animation: lg-logo-glow 3s ease-in-out infinite;
         }
 
-        @keyframes logoGlow {
+        @keyframes lg-logo-glow {
           0%, 100% { box-shadow: 0 20px 60px var(--primary-glow); }
           50% { box-shadow: 0 20px 80px var(--primary-glow), 0 0 100px var(--secondary-glow); }
         }
 
-        .sparkle-icon {
+        .lg-logo-sparkle {
           position: absolute;
           top: -10px;
           right: -10px;
           color: var(--warning);
-          animation: sparkle 2s ease-in-out infinite;
+          animation: lg-sparkle 2s ease-in-out infinite;
         }
 
-        @keyframes sparkle {
+        @keyframes lg-sparkle {
           0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
           50% { transform: scale(1.2) rotate(180deg); opacity: 0.8; }
         }
 
-        .brand-title {
+        .lg-brand-title {
           font-size: 3.5rem;
           font-weight: 900;
           line-height: 1.1;
@@ -517,7 +523,7 @@ export default function LoginPage() {
           background-clip: text;
         }
 
-        .title-accent {
+        .lg-brand-accent {
           display: block;
           font-size: 1.2rem;
           font-weight: 600;
@@ -529,21 +535,21 @@ export default function LoginPage() {
           background-clip: text;
         }
 
-        .brand-description {
+        .lg-brand-desc {
           font-size: 1.1rem;
           color: var(--text-muted);
           line-height: 1.6;
           margin-bottom: 3rem;
         }
 
-        .brand-features {
+        .lg-features {
           display: flex;
           flex-direction: column;
           gap: 1.2rem;
           margin-bottom: 3rem;
         }
 
-        .feature-item {
+        .lg-feature {
           display: flex;
           align-items: center;
           gap: 1rem;
@@ -556,17 +562,17 @@ export default function LoginPage() {
           transition: all var(--transition-base);
         }
 
-        .feature-item:hover {
+        .lg-feature:hover {
           background: rgba(99, 102, 241, 0.1);
           border-color: var(--primary);
           transform: translateX(10px);
         }
 
-        .feature-item svg {
+        .lg-feature svg {
           color: var(--primary);
         }
 
-        .brand-stats {
+        .lg-stats {
           display: flex;
           align-items: center;
           gap: 2rem;
@@ -576,11 +582,11 @@ export default function LoginPage() {
           border-radius: 16px;
         }
 
-        .stat-item {
+        .lg-stat {
           text-align: center;
         }
 
-        .stat-number {
+        .lg-stat-num {
           font-size: 2rem;
           font-weight: 900;
           background: linear-gradient(135deg, var(--primary), var(--secondary));
@@ -590,50 +596,55 @@ export default function LoginPage() {
           margin-bottom: 0.3rem;
         }
 
-        .stat-label {
+        .lg-stat-label {
           font-size: 0.85rem;
           color: var(--text-dim);
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
 
-        .stat-divider {
+        .lg-stat-divider {
           width: 1px;
           height: 50px;
           background: var(--border);
         }
 
-        .brand-footer {
+        .lg-brand-footer {
           color: var(--text-dim);
           font-size: 0.9rem;
         }
 
-        /* Right Side - Form */
-        .login-form-section-v2 {
+        /* ── Right Side - Form ── */
+        .lg-form-section {
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 3rem;
-          animation: fadeInRight 0.8s ease-out;
+          animation: lg-fade-right 0.8s ease-out;
         }
 
-        .form-card-v2 {
+        .lg-form-card {
           width: 100%;
           max-width: 480px;
           padding: 3rem;
-          animation: fadeInUp 0.6s ease-out 0.2s both;
+          border-radius: var(--radius-xl);
+          background: var(--bg-card);
+          border: 1px solid var(--border);
+          backdrop-filter: var(--glass);
+          box-shadow: var(--shadow-xl);
+          animation: lg-fade-up 0.6s ease-out 0.2s both;
         }
 
-        .form-header-v2 {
+        .lg-form-header {
           margin-bottom: 2.5rem;
         }
 
-        .header-badge {
+        .lg-badge {
           display: inline-flex;
           align-items: center;
           gap: 0.5rem;
           padding: 0.5rem 1rem;
-          background: linear-gradient(135deg, var(--primary-glow), var(--secondary-glow));
+          background: var(--primary-glow);
           border: 1px solid var(--primary);
           border-radius: 100px;
           color: var(--primary);
@@ -642,31 +653,31 @@ export default function LoginPage() {
           margin-bottom: 1.5rem;
         }
 
-        .form-header-v2 h2 {
+        .lg-form-title {
           font-size: 2rem;
           font-weight: 800;
           margin-bottom: 0.5rem;
           color: var(--text-main);
         }
 
-        .form-header-v2 p {
+        .lg-form-subtitle {
           color: var(--text-muted);
           font-size: 1rem;
         }
 
-        .login-form-v2 {
+        .lg-form {
           display: flex;
           flex-direction: column;
           gap: 1.5rem;
         }
 
-        .input-group-v2 {
+        .lg-field {
           display: flex;
           flex-direction: column;
           gap: 0.6rem;
         }
 
-        .input-label-v2 {
+        .lg-label {
           display: flex;
           align-items: center;
           gap: 0.5rem;
@@ -675,33 +686,33 @@ export default function LoginPage() {
           color: var(--text-muted);
         }
 
-        .input-label-v2 svg {
+        .lg-label svg {
           color: var(--primary);
         }
 
-        .label-row-v2 {
+        .lg-label-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
         }
 
-        .forgot-link-v2 {
+        .lg-forgot {
           font-size: 0.85rem;
           color: var(--primary);
           font-weight: 600;
           transition: all var(--transition-fast);
         }
 
-        .forgot-link-v2:hover {
+        .lg-forgot:hover {
           color: var(--secondary);
           text-decoration: underline;
         }
 
-        .input-wrapper-v2 {
+        .lg-input-wrap {
           position: relative;
         }
 
-        .input-field-v2 {
+        .lg-input {
           width: 100%;
           padding: 1rem 1.2rem;
           background: var(--bg-input);
@@ -712,7 +723,7 @@ export default function LoginPage() {
           transition: all var(--transition-base);
         }
 
-        .input-field-v2:focus {
+        .lg-input:focus {
           outline: none;
           border-color: var(--primary);
           background: rgba(255, 255, 255, 0.05);
@@ -720,11 +731,11 @@ export default function LoginPage() {
           transform: translateY(-2px);
         }
 
-        .input-field-v2::placeholder {
+        .lg-input::placeholder {
           color: var(--text-dim);
         }
 
-        .password-toggle-v2 {
+        .lg-toggle-pw {
           position: absolute;
           right: 1rem;
           top: 50%;
@@ -734,41 +745,38 @@ export default function LoginPage() {
           transition: color var(--transition-fast);
         }
 
-        .password-toggle-v2:hover {
+        .lg-toggle-pw:hover {
           color: var(--primary);
         }
 
-        .error-alert-v2 {
+        .lg-alert {
           display: flex;
           align-items: center;
           gap: 0.8rem;
           padding: 1rem;
+          border-radius: var(--radius-md);
+          font-size: 0.9rem;
+          animation: lg-fade-down 0.4s ease-out;
+        }
+
+        .lg-alert-error {
           background: rgba(239, 68, 68, 0.1);
           border: 1px solid rgba(239, 68, 68, 0.2);
-          border-radius: var(--radius-md);
           color: #f87171;
-          font-size: 0.9rem;
-          animation: fadeInDown 0.4s ease-out;
         }
 
-        .success-alert-v2 {
-          display: flex;
-          align-items: center;
-          gap: 0.8rem;
-          padding: 1rem;
+        .lg-alert-success {
           background: rgba(16, 185, 129, 0.1);
           border: 1px solid rgba(16, 185, 129, 0.2);
-          border-radius: var(--radius-md);
           color: #34d399;
-          font-size: 0.9rem;
-          animation: fadeInDown 0.4s ease-out;
         }
 
-        .submit-btn-v2 {
+        .lg-submit {
           margin-top: 0.5rem;
           padding: 1.2rem;
           border-radius: var(--radius-md);
-          background: linear-gradient(135deg, var(--primary), var(--secondary));
+          background: transparent;
+          border: none;
           color: white;
           font-weight: 700;
           font-size: 1.1rem;
@@ -776,71 +784,88 @@ export default function LoginPage() {
           align-items: center;
           justify-content: center;
           gap: 0.8rem;
-          box-shadow: 0 10px 30px var(--primary-glow);
-          transition: all var(--transition-base);
+          cursor: pointer;
           position: relative;
           overflow: hidden;
+          transition: all var(--transition-base);
         }
 
-        .submit-btn-v2::before {
+        .lg-submit-bg {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, var(--primary), var(--secondary));
+          border-radius: var(--radius-md);
+          transition: all var(--transition-base);
+        }
+
+        .lg-submit::before {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
-          opacity: 0;
-          transition: opacity var(--transition-base);
+          background: linear-gradient(135deg, transparent 30%, rgba(255, 255, 255, 0.15) 50%, transparent 70%);
+          background-size: 200% 200%;
+          animation: lg-shimmer 4s ease-in-out infinite;
+          border-radius: var(--radius-md);
+          z-index: 1;
         }
 
-        .submit-btn-v2:hover::before {
-          opacity: 1;
+        @keyframes lg-shimmer {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
         }
 
-        .submit-btn-v2:hover {
+        .lg-submit > * { position: relative; z-index: 2; }
+
+        .lg-submit:hover:not(:disabled) {
           transform: translateY(-3px);
           box-shadow: 0 15px 40px var(--primary-glow);
         }
 
-        .submit-btn-v2:active {
+        .lg-submit:hover:not(:disabled) .lg-submit-bg {
+          filter: brightness(1.15);
+        }
+
+        .lg-submit:active:not(:disabled) {
           transform: translateY(-1px);
         }
 
-        .submit-btn-v2:disabled {
+        .lg-submit:disabled {
           opacity: 0.6;
           cursor: not-allowed;
           transform: none;
         }
 
-        .form-footer-v2 {
+        .lg-form-footer {
           margin-top: 2rem;
         }
 
-        .divider-v2 {
+        .lg-divider {
           display: flex;
           align-items: center;
           gap: 1rem;
           margin-bottom: 1.5rem;
         }
 
-        .divider-v2::before,
-        .divider-v2::after {
+        .lg-divider::before,
+        .lg-divider::after {
           content: '';
           flex: 1;
           height: 1px;
           background: var(--border);
         }
 
-        .divider-v2 span {
+        .lg-divider span {
           color: var(--text-dim);
           font-size: 0.9rem;
         }
 
-        .form-footer-v2 p {
+        .lg-form-footer p {
           text-align: center;
           color: var(--text-dim);
           font-size: 0.95rem;
         }
 
-        .form-footer-v2 button {
+        .lg-form-footer button {
           color: var(--primary);
           font-weight: 700;
           margin-left: 0.5rem;
@@ -850,21 +875,21 @@ export default function LoginPage() {
           transition: all var(--transition-fast);
         }
 
-        .form-footer-v2 button:hover {
+        .lg-form-footer button:hover {
           color: var(--secondary);
           text-decoration: underline;
         }
 
-        .spinner { 
-          animation: spin 1s linear infinite; 
+        .lg-spinner { 
+          animation: lg-spin 1s linear infinite; 
         }
-        @keyframes spin { 
+        @keyframes lg-spin { 
           from { transform: rotate(0deg); } 
           to { transform: rotate(360deg); } 
         }
 
-        /* Debug Panel */
-        .debug-panel {
+        /* ── Debug Panel ── */
+        .lg-debug {
           margin-top: 2rem;
           padding: 1.5rem;
           background: rgba(245, 158, 11, 0.05);
@@ -872,7 +897,7 @@ export default function LoginPage() {
           border-radius: var(--radius-lg);
         }
 
-        .debug-header {
+        .lg-debug-head {
           display: flex;
           align-items: center;
           gap: 0.5rem;
@@ -881,21 +906,21 @@ export default function LoginPage() {
           margin-bottom: 1rem;
         }
 
-        .debug-content {
+        .lg-debug-body {
           font-size: 0.85rem;
           color: var(--text-muted);
           line-height: 1.6;
         }
 
-        .debug-content p {
+        .lg-debug-body p {
           margin-bottom: 0.8rem;
         }
 
-        .debug-content strong {
+        .lg-debug-body strong {
           color: var(--text-main);
         }
 
-        .debug-step {
+        .lg-debug-step {
           margin-top: 1rem;
           padding-top: 1rem;
           border-top: 1px solid rgba(245, 158, 11, 0.2);
@@ -903,63 +928,84 @@ export default function LoginPage() {
           color: var(--accent) !important;
         }
 
-        .debug-content ol {
+        .lg-debug-body ol {
           margin-left: 1.5rem;
           margin-top: 0.5rem;
         }
 
-        .debug-content li {
+        .lg-debug-body li {
           margin-bottom: 0.5rem;
         }
 
-        .debug-content a {
+        .lg-debug-body a {
           color: var(--primary);
           text-decoration: underline;
         }
 
-        .debug-content a:hover {
+        .lg-debug-body a:hover {
           color: var(--secondary);
         }
 
-        /* Responsive Design */
+        /* ── Animations ── */
+        @keyframes lg-fade-left {
+          from { opacity: 0; transform: translateX(-30px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes lg-fade-right {
+          from { opacity: 0; transform: translateX(30px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes lg-fade-up {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes lg-fade-down {
+          from { opacity: 0; transform: translateY(-20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Responsive ── */
         @media (max-width: 1024px) {
-          .login-branding-v2 {
+          .lg-brand {
             padding: 3rem;
           }
-          .brand-title {
+          .lg-brand-title {
             font-size: 2.5rem;
           }
         }
 
         @media (max-width: 768px) {
-          .login-wrapper-v2 {
+          .lg-wrapper {
             grid-template-columns: 1fr;
           }
-          .login-branding-v2 {
+          .lg-brand {
             display: none;
           }
-          .login-form-section-v2 {
+          .lg-form-section {
             padding: 2rem 1.5rem;
           }
-          .form-card-v2 {
+          .lg-form-card {
             padding: 2rem 1.5rem;
           }
-          .form-header-v2 h2 {
+          .lg-form-title {
             font-size: 1.8rem;
           }
         }
 
         @media (max-width: 480px) {
-          .login-form-section-v2 {
+          .lg-form-section {
             padding: 1.5rem 1rem;
           }
-          .form-card-v2 {
+          .lg-form-card {
             padding: 1.5rem 1rem;
           }
-          .form-header-v2 h2 {
+          .lg-form-title {
             font-size: 1.5rem;
           }
-          .submit-btn-v2 {
+          .lg-submit {
             padding: 1rem;
           }
         }

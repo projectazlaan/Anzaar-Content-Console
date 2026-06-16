@@ -31,68 +31,74 @@ export default function Home() {
     }
   }, [user, loading, router]);
 
-  // Show minimal loading state
   if (loading || !user) {
     return (
-      <div className="flex-center" style={{ height: '100vh', background: '#020617' }}>
-        <Loader2 className="spinner" size={48} color="#6366f1" />
+      <div className="ep-loading">
+        <Loader2 className="ep-spinner" size={48} color="#6366f1" />
       </div>
     );
   }
 
   const filteredRoles = roles;
 
-
   return (
-    <main className="entry-page">
-      <div className="bg-decor">
-        <div className="blob blob-1"></div>
-        <div className="blob blob-2"></div>
+    <main className="ep-root">
+      {/* Ambient Background */}
+      <div className="ep-ambient" aria-hidden="true">
+        <div className="ep-orb ep-orb-1" />
+        <div className="ep-orb ep-orb-2" />
+        <div className="ep-orb ep-orb-3" />
+        <div className="ep-grid-lines" />
       </div>
 
-      <header className="entry-header animate-fade">
-        <h1 className="text-gradient">ANZAAR CONTENT CONSOL</h1>
-        <p>Welcome back, <strong>{user.email?.split('@')[0]}</strong>. Choose your portal:</p>
+      <header className="ep-header animate-fade">
+        <h1 className="ep-title">
+          <span className="ep-title-accent">ANZAAR</span>
+          <span className="ep-title-sub">CONTENT CONSOL</span>
+        </h1>
+        <p className="ep-welcome">Welcome back, <strong>{user.email?.split('@')[0]}</strong>. Choose your portal:</p>
       </header>
 
-      <div className="role-grid container">
+      <div className="ep-grid container">
         {user.role === "admin" && (
           <div 
-            className="role-card glass admin-card animate-fade"
+            className="ep-card ep-admin-card animate-fade"
             onClick={() => router.push("/admin")}
           >
-            <div className="role-icon" style={{ backgroundColor: `rgba(248, 113, 113, 0.1)`, color: "#f87171" }}>
+            <div className="ep-card-icon" style={{ backgroundColor: `rgba(248, 113, 113, 0.1)`, color: "#f87171" }}>
               <ShieldCheck size={32} />
             </div>
-            <h3>Admin Console</h3>
-            <p>Manage users, roles, and global production permissions.</p>
-            <div className="role-border" style={{ backgroundColor: "#f87171" }}></div>
+            <h3 className="ep-card-title">Admin Console</h3>
+            <p className="ep-card-desc">Manage users, roles, and global production permissions.</p>
+            <div className="ep-card-border" style={{ backgroundColor: "#f87171" }} />
+            <div className="ep-card-shine" />
           </div>
         )}
 
         {filteredRoles.map((role, i) => (
           <div 
             key={role.name} 
-            className="role-card glass animate-fade"
+            className="ep-card animate-fade"
             style={{ animationDelay: `${(i + 1) * 0.1}s` }}
             onClick={() => router.push(role.href)}
           >
-            <div className="role-icon" style={{ backgroundColor: `${role.color}20`, color: role.color }}>
+            <div className="ep-card-icon" style={{ backgroundColor: `${role.color}20`, color: role.color }}>
               <role.icon size={32} />
             </div>
-            <h3>{role.name}</h3>
-            <p>{role.desc}</p>
-            <div className="role-border" style={{ backgroundColor: role.color }}></div>
+            <h3 className="ep-card-title">{role.name}</h3>
+            <p className="ep-card-desc">{role.desc}</p>
+            <div className="ep-card-border" style={{ backgroundColor: role.color }} />
+            <div className="ep-card-shine" />
           </div>
         ))}
 
         {user.role === "pending" && (
-          <div className="pending-notice glass animate-fade">
-            <Loader2 className="spinner" size={32} />
-            <h2>Account Pending Approval</h2>
-            <p>Your account has been created successfully. Please wait for a Super Admin to assign your role before you can access the production portals.</p>
+          <div className="ep-pending animate-fade">
+            <Loader2 className="ep-spinner" size={32} />
+            <h2 className="ep-pending-title">Account Pending Approval</h2>
+            <p className="ep-pending-desc">Your account has been created successfully. Please wait for a Super Admin to assign your role before you can access the production portals.</p>
             <button 
-              className="btn-primary"
+              className="ep-self-approve-btn"
               onClick={async () => {
                 try {
                   const { forceSetAsAdmin } = await import('@/lib/actions');
@@ -107,17 +113,6 @@ export default function Home() {
                   alert('❌ Error: ' + error.message);
                 }
               }}
-              style={{ 
-                marginTop: '1rem',
-                padding: '0.8rem 2rem',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, var(--warning), #f97316)',
-                color: 'white',
-                fontWeight: 700,
-                cursor: 'pointer',
-                border: 'none',
-                fontSize: '1rem'
-              }}
             >
               Self-Approve as Admin (Quick Fix)
             </button>
@@ -126,7 +121,7 @@ export default function Home() {
       </div>
 
       <style jsx>{`
-        .entry-page {
+        .ep-root {
           min-height: 100vh;
           display: flex;
           flex-direction: column;
@@ -136,58 +131,103 @@ export default function Home() {
           position: relative;
           overflow: hidden;
           background: var(--bg-deep);
+          font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+          color: var(--text-main);
         }
 
-        .bg-decor {
-          position: absolute;
+        /* ── Ambient Background ── */
+        .ep-ambient {
+          position: fixed;
           inset: 0;
+          pointer-events: none;
           z-index: 0;
           overflow: hidden;
         }
-
-        .blob {
+        .ep-orb {
           position: absolute;
-          width: 600px;
-          height: 600px;
-          filter: blur(120px);
-          opacity: 0.15;
           border-radius: 50%;
-          animation: float 8s ease-in-out infinite;
+          filter: blur(120px);
+          animation: ep-drift 20s ease-in-out infinite alternate;
+        }
+        .ep-orb-1 {
+          width: 700px; height: 700px;
+          background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+          top: -200px; left: -100px;
+          animation-duration: 18s;
+          opacity: 0.2;
+        }
+        .ep-orb-2 {
+          width: 500px; height: 500px;
+          background: radial-gradient(circle, var(--secondary-glow) 0%, transparent 70%);
+          top: 30%; right: 5%;
+          animation-duration: 24s;
+          animation-delay: -8s;
+          opacity: 0.18;
+        }
+        .ep-orb-3 {
+          width: 400px; height: 400px;
+          background: radial-gradient(circle, var(--info-glow) 0%, transparent 70%);
+          bottom: 5%; left: 35%;
+          animation-duration: 30s;
+          animation-delay: -15s;
+          opacity: 0.15;
+        }
+        @keyframes ep-drift {
+          0%   { transform: translate(0, 0) scale(1); opacity: 0.7; }
+          50%  { transform: translate(40px, 30px) scale(1.08); opacity: 1; }
+          100% { transform: translate(-20px, 15px) scale(0.93); opacity: 0.6; }
+        }
+        .ep-grid-lines {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(99,102,241,0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(99,102,241,0.02) 1px, transparent 1px);
+          background-size: 48px 48px;
         }
 
-        .blob-1 { 
-          background: var(--primary); 
-          top: -200px; 
-          right: -200px;
-          animation-delay: 0s;
-        }
-        .blob-2 { 
-          background: var(--secondary); 
-          bottom: -200px; 
-          left: -200px;
-          animation-delay: 4s;
-        }
-
-        .entry-header {
+        /* ── Header ── */
+        .ep-header {
           text-align: center;
           margin-bottom: 4rem;
           position: relative;
           z-index: 1;
         }
 
-        .entry-header h1 {
-          font-size: clamp(2rem, 5vw, 4rem);
+        .ep-title {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
           margin-bottom: 1rem;
+        }
+        .ep-title-accent {
+          font-size: clamp(2rem, 5vw, 4rem);
           font-weight: 900;
           letter-spacing: -0.02em;
+          background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          line-height: 1.1;
+        }
+        .ep-title-sub {
+          font-size: clamp(1rem, 2.5vw, 1.8rem);
+          font-weight: 600;
+          letter-spacing: 0.15em;
+          background: linear-gradient(135deg, var(--text-muted), var(--text-dim));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          margin-top: 0.25rem;
         }
 
-        .entry-header p {
+        .ep-welcome {
           color: var(--text-dim);
           font-size: clamp(1rem, 2vw, 1.2rem);
         }
 
-        .role-grid {
+        /* ── Grid ── */
+        .ep-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
           gap: 2rem;
@@ -197,21 +237,26 @@ export default function Home() {
           z-index: 1;
         }
 
-        .role-card {
+        /* ── Cards ── */
+        .ep-card {
           padding: 3rem 2.5rem;
           text-align: left;
           display: flex;
           flex-direction: column;
           align-items: flex-start;
-          transition: all var(--transition-slow);
           cursor: pointer;
           position: relative;
           overflow: hidden;
           min-height: 320px;
+          border-radius: var(--radius-xl);
+          background: var(--bg-card);
+          border: 1px solid var(--border);
+          backdrop-filter: var(--glass);
+          box-shadow: var(--shadow-xl);
+          transition: all var(--transition-slow);
         }
 
-        .role-card::before {
-          content: '';
+        .ep-card-shine {
           position: absolute;
           top: 0;
           left: -100%;
@@ -219,24 +264,25 @@ export default function Home() {
           height: 100%;
           background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
           transition: left 0.6s ease;
+          pointer-events: none;
         }
 
-        .role-card:hover::before {
+        .ep-card:hover .ep-card-shine {
           left: 100%;
         }
 
-        .role-card:hover {
+        .ep-card:hover {
           transform: translateY(-10px) scale(1.02);
-          background-color: var(--bg-hover);
+          background: var(--bg-hover);
           border-color: var(--border-glow);
           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 40px var(--primary-glow);
         }
 
-        .admin-card:hover {
+        .ep-admin-card:hover {
           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 40px var(--danger-glow);
         }
 
-        .role-icon {
+        .ep-card-icon {
           width: 70px;
           height: 70px;
           border-radius: 18px;
@@ -249,19 +295,20 @@ export default function Home() {
           z-index: 1;
         }
 
-        .role-card:hover .role-icon {
+        .ep-card:hover .ep-card-icon {
           transform: scale(1.1) rotate(5deg);
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
         }
 
-        .role-card h3 {
+        .ep-card-title {
           font-size: clamp(1.5rem, 2vw, 1.8rem);
           margin-bottom: 1rem;
           position: relative;
           z-index: 1;
+          color: var(--text-main);
         }
 
-        .role-card p {
+        .ep-card-desc {
           color: var(--text-muted);
           font-size: 1rem;
           line-height: 1.6;
@@ -269,21 +316,22 @@ export default function Home() {
           z-index: 1;
         }
 
-        .role-border {
+        .ep-card-border {
           position: absolute;
           bottom: 0;
           left: 0;
           width: 0;
           height: 6px;
           transition: width var(--transition-base);
-          border-radius: 0 0 16px 16px;
+          border-radius: 0 0 var(--radius-xl) var(--radius-xl);
         }
 
-        .role-card:hover .role-border { 
+        .ep-card:hover .ep-card-border { 
           width: 100%; 
         }
 
-        .pending-notice {
+        /* ── Pending Notice ── */
+        .ep-pending {
           grid-column: 1 / -1;
           padding: 4rem;
           text-align: center;
@@ -291,55 +339,91 @@ export default function Home() {
           flex-direction: column;
           align-items: center;
           gap: 1.5rem;
-          background: rgba(251, 191, 36, 0.05);
+          border-radius: var(--radius-xl);
+          background: rgba(251, 191, 36, 0.03);
           border: 1px dashed rgba(251, 191, 36, 0.3);
-          animation: pulse 2s ease-in-out infinite;
+          backdrop-filter: var(--glass);
+          animation: ep-pulse 2s ease-in-out infinite;
         }
 
-        .pending-notice h2 { 
+        .ep-pending-title { 
           color: #fbbf24; 
           font-size: clamp(1.5rem, 3vw, 2rem);
+          font-weight: 800;
         }
-        .pending-notice p { 
+        .ep-pending-desc { 
           color: var(--text-dim); 
           max-width: 600px; 
           font-size: clamp(0.95rem, 1.5vw, 1.1rem);
+          line-height: 1.6;
         }
 
-        .spinner { 
-          animation: spin 1s linear infinite; 
+        .ep-self-approve-btn {
+          margin-top: 0.5rem;
+          padding: 0.8rem 2rem;
+          border-radius: var(--radius-md);
+          background: linear-gradient(135deg, var(--warning), #f97316);
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
+          border: none;
+          font-size: 1rem;
+          transition: all var(--transition-base);
+          box-shadow: 0 4px 14px var(--warning-glow);
         }
-        @keyframes spin { 
+        .ep-self-approve-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px var(--warning-glow);
+          filter: brightness(1.1);
+        }
+
+        .ep-spinner { 
+          animation: ep-spin 1s linear infinite; 
+        }
+        @keyframes ep-spin { 
           from { transform: rotate(0deg); } 
           to { transform: rotate(360deg); } 
         }
 
+        @keyframes ep-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+
+        .ep-loading {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          background: var(--bg-deep);
+        }
+
         @media (max-width: 768px) {
-          .entry-page {
+          .ep-root {
             padding: 2rem 1rem;
           }
-          .entry-header {
+          .ep-header {
             margin-bottom: 2rem;
           }
-          .role-grid {
+          .ep-grid {
             grid-template-columns: 1fr;
             gap: 1.5rem;
           }
-          .role-card {
+          .ep-card {
             padding: 2rem;
             min-height: auto;
           }
-          .blob {
+          .ep-orb {
             width: 400px;
             height: 400px;
           }
         }
 
         @media (max-width: 480px) {
-          .role-card {
+          .ep-card {
             padding: 1.5rem;
           }
-          .role-icon {
+          .ep-card-icon {
             width: 60px;
             height: 60px;
             margin-bottom: 1.5rem;

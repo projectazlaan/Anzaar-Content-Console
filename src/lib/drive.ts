@@ -1,41 +1,23 @@
 import { google } from "googleapis";
 
-// This file handles all Google Drive operations using OAuth2 Refresh Token
-// This allows the app to act as a personal Gmail user and use their quota.
-
-const SCOPES = ["https://www.googleapis.com/auth/drive"];
+const SCOPES = ["https://www.googleapis.com/auth/drive.file"];
 
 export async function getDriveService() {
   const client_id = process.env.GOOGLE_DRIVE_CLIENT_ID;
   const client_secret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
   const refresh_token = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
 
-  if (!client_id || !client_secret || !refresh_token) {
-    // If OAuth2 credentials are not set, try falling back to Service Account (Legacy/Read-only)
-    const client_email = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL;
-    const private_key = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-    if (client_email && private_key) {
-      console.warn("Using Service Account fallback. Uploads might fail due to quota.");
-      const auth = new google.auth.GoogleAuth({
-        credentials: { client_email, private_key },
-        scopes: SCOPES,
-      });
-      return google.drive({ version: "v3", auth });
-    }
-
-    throw new Error("Google Drive OAuth2 credentials not fully configured. Please set CLIENT_ID, CLIENT_SECRET, and REFRESH_TOKEN.");
+  if (client_id && client_secret && refresh_token) {
+    const oauth2Client = new google.auth.OAuth2(
+      client_id,
+      client_secret,
+      "http://localhost"
+    );
+    oauth2Client.setCredentials({ refresh_token });
+    return google.drive({ version: "v3", auth: oauth2Client });
   }
 
-  const oauth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    "http://localhost" // Redirect URI (not strictly needed for background refresh)
-  );
-
-  oauth2Client.setCredentials({ refresh_token });
-
-  return google.drive({ version: "v3", auth: oauth2Client });
+  throw new Error("Google Drive OAuth2 credentials not configured in .env.local.");
 }
 
 export async function uploadFileToDrive(

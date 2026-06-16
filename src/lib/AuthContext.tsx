@@ -1,9 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 interface AuthUser {
   uid: string;
@@ -23,77 +23,38 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
 
-// Cache user data to avoid unnecessary re-renders
-let userCache: AuthUser | null = null;
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(userCache);
-  const [loading, setLoading] = useState(!userCache);
-  const snapshotRef = useRef<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Use getDoc for faster initial load instead of onSnapshot
         try {
-          const docSnap = await getDoc(doc(db, "users", firebaseUser.uid));
-          
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            const userData: AuthUser = {
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               role: data.role || "pending",
               permissions: data.permissions || { view: true, edit: false, delete: false },
-            };
-            
-            // Cache the user data
-            userCache = userData;
-            setUser(userData);
-            
-            // Set up real-time listener after initial load for live updates
-            if (!snapshotRef.current) {
-              snapshotRef.current = onSnapshot(doc(db, "users", firebaseUser.uid), (snap) => {
-                if (snap.exists()) {
-                  const updatedData = snap.data();
-                  userCache = {
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email,
-                    role: updatedData.role || "pending",
-                    permissions: updatedData.permissions || { view: true, edit: false, delete: false },
-                  };
-                  setUser(userCache);
-                }
-              });
-            }
+            });
           } else {
-            userCache = null;
             setUser(null);
           }
         } catch (error) {
           console.error("Error fetching user data:", error);
-          userCache = null;
           setUser(null);
         }
       } else {
-        userCache = null;
         setUser(null);
-        // Cleanup snapshot listener
-        if (snapshotRef.current) {
-          snapshotRef.current();
-          snapshotRef.current = null;
-        }
       }
       setLoading(false);
     });
 
-    return () => {
-      unsubscribeAuth();
-      if (snapshotRef.current) {
-        snapshotRef.current();
-        snapshotRef.current = null;
-      }
-    };
+    return () => unsubscribeAuth();
   }, []);
 
   return (
