@@ -820,14 +820,7 @@ export default function DesignerPage() {
             </div>
 
             <div className="dh-popup-footer">
-              <button className="dh-popup-viewer-btn" onClick={() => {
-                const imgs = getProductImages(selectedDetailProduct);
-                if (imgs.length > 0) {
-                  const url = getDisplayUrl(imgs[0].url, imgs[0].id, 1600);
-                  if (url) window.open(url, '_blank');
-                }
-                closeProductDetail();
-              }}>
+              <button className="dh-popup-viewer-btn" onClick={() => { openViewer(selectedDetailProduct); closeProductDetail(); }}>
                 <Eye size={16} />
                 <span>Open in Viewer</span>
               </button>
