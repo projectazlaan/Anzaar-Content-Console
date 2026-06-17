@@ -35,17 +35,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         @media (max-width: 768px) {
           .content-area {
             margin-left: 0;
-            padding: 1.5rem;
-            padding-top: 90px;
-            padding-bottom: 80px;
+            padding: 1.25rem;
+            padding-top: 76px;   /* 60px topbar + 16px gap */
+            padding-bottom: 76px; /* 60px bottom nav + 16px gap */
+            min-height: 100dvh;
           }
         }
 
         @media (max-width: 480px) {
           .content-area {
             padding: 1rem;
-            padding-top: 85px;
-            padding-bottom: 80px;
+            padding-top: 72px;
+            padding-bottom: 72px;
           }
         }
       `}</style>

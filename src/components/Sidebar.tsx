@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
@@ -21,7 +21,8 @@ import {
   Zap,
   ArrowLeft,
   ArrowRight,
-  Moon, Sun
+  Moon, Sun,
+  Home
 } from "lucide-react";
 import NotificationDropdown from "./NotificationDropdown";
 
@@ -42,16 +43,57 @@ export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [isDarkTheme, setIsDarkTheme] = useState(true);
+  const touchStartX = useRef<number>(0);
+  const touchStartY = useRef<number>(0);
 
   useEffect(() => {
     setMounted(true);
-    // Load saved theme
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'light') {
       setIsDarkTheme(false);
       document.documentElement.setAttribute('data-theme', 'light');
     }
   }, []);
+
+  // Swipe to open/close sidebar on mobile
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      const dx = e.changedTouches[0].clientX - touchStartX.current;
+      const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+      if (dy > 60) return; // ignore vertical swipes
+      if (dx > 60 && touchStartX.current < 30) {
+        setIsMobileOpen(true);
+      }
+      if (dx < -60 && isMobileOpen) {
+        setIsMobileOpen(false);
+      }
+    };
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMobileOpen]);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobileOpen]);
 
   const toggleTheme = () => {
     const newTheme = !isDarkTheme;
@@ -78,16 +120,37 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Toggle — OUTSIDE sidebar so it's always visible */}
-      <button className="mobile-menu-btn" onClick={() => setIsMobileOpen(!isMobileOpen)}>
-        {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
-      </button>
+      {/* ── MOBILE TOP HEADER BAR ── */}
+      <header className="mob-topbar">
+        <button className="mob-topbar-menu" onClick={() => setIsMobileOpen(!isMobileOpen)} aria-label="Open menu">
+          {isMobileOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
 
-      {/* Overlay for mobile — OUTSIDE sidebar */}
+        <button className="mob-topbar-brand" onClick={() => router.push("/")} aria-label="Home">
+          <div className="mob-topbar-logo">
+            <Zap size={16} />
+          </div>
+          <span className="mob-topbar-title">ANZAAR</span>
+        </button>
+
+        <div className="mob-topbar-actions">
+          <NotificationDropdown />
+          <button className="mob-topbar-icon-btn" onClick={toggleTheme} title="Toggle theme">
+            {isDarkTheme ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </div>
+      </header>
+
+      {/* Overlay */}
       {isMobileOpen && (
-        <div className="mobile-overlay" onClick={() => setIsMobileOpen(false)} />
+        <div 
+          className="mobile-overlay" 
+          onClick={() => setIsMobileOpen(false)} 
+          aria-hidden="true"
+        />
       )}
 
+      {/* ── SIDEBAR ── */}
       <div className={`sidebar-wrapper ${isMobileOpen ? 'mobile-open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
         <aside className="sidebar-premium">
           {/* Top Section */}
@@ -105,7 +168,26 @@ export default function Sidebar() {
                 </div>
               )}
             </div>
+
+            {/* Mobile close button inside sidebar */}
+            <button className="sidebar-mobile-close" onClick={() => setIsMobileOpen(false)} aria-label="Close sidebar">
+              <X size={18} />
+            </button>
           </div>
+
+          {/* User greeting for mobile */}
+          {user && !isCollapsed && (
+            <div className="sidebar-user-greeting">
+              <div className="sug-avatar">
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="sug-info">
+                <span className="sug-name">{user?.email?.split('@')[0]}</span>
+                <span className="sug-role">{user?.role || 'Member'}</span>
+              </div>
+              <div className="sug-status" />
+            </div>
+          )}
 
           {/* Navigation */}
           <nav className="sidebar-navigation">
@@ -215,26 +297,263 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="mobile-bottom-nav">
+      {/* ── MOBILE BOTTOM NAVIGATION BAR ── */}
+      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
         <div className="mobile-bottom-nav-inner">
-          {filteredItems.map((item) => {
+          <Link href="/" className={`mobile-bottom-nav-item ${pathname === '/' ? 'active' : ''}`}>
+            <div className="mbn-icon-wrap">
+              <Home size={20} className="mobile-bottom-nav-icon" />
+              {pathname === '/' && <span className="mbn-active-pip" />}
+            </div>
+            <span className="mobile-bottom-nav-label">Home</span>
+          </Link>
+
+          {filteredItems.slice(0, 3).map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
               <Link key={item.id} href={item.href} className={`mobile-bottom-nav-item ${isActive ? 'active' : ''}`}>
-                <item.icon size={20} className="mobile-bottom-nav-icon" />
-                <span className="mobile-bottom-nav-label">{item.name.length > 8 ? item.name.slice(0,7)+'..' : item.name}</span>
+                <div className="mbn-icon-wrap">
+                  <item.icon size={20} className="mobile-bottom-nav-icon" />
+                  {isActive && <span className="mbn-active-pip" />}
+                </div>
+                <span className="mobile-bottom-nav-label">
+                  {item.name.length > 7 ? item.name.slice(0, 6) + '..' : item.name}
+                </span>
               </Link>
             );
           })}
-          <Link href="/settings" className={`mobile-bottom-nav-item ${pathname === '/settings' ? 'active' : ''}`}>
-            <Settings size={20} className="mobile-bottom-nav-icon" />
-            <span className="mobile-bottom-nav-label">Settings</span>
-          </Link>
+
+          <button 
+            className="mobile-bottom-nav-item"
+            onClick={() => setIsMobileOpen(true)}
+            aria-label="More menu"
+          >
+            <div className="mbn-icon-wrap">
+              <Menu size={20} className="mobile-bottom-nav-icon" />
+            </div>
+            <span className="mobile-bottom-nav-label">More</span>
+          </button>
         </div>
-      </div>
+      </nav>
 
       <style jsx global>{`
+        /* ─────────────────────────────────────────
+           MOBILE TOP HEADER BAR
+           ───────────────────────────────────────── */
+        .mob-topbar {
+          display: none;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 60px;
+          z-index: 1100;
+          background: rgba(10, 14, 26, 0.92);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 1rem;
+          gap: 0.5rem;
+        }
+
+        [data-theme="light"] .mob-topbar {
+          background: rgba(255, 255, 255, 0.95);
+          border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .mob-topbar-menu {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.85);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          flex-shrink: 0;
+        }
+
+        [data-theme="light"] .mob-topbar-menu {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(0, 0, 0, 0.08);
+          color: #0f172a;
+        }
+
+        .mob-topbar-menu:active {
+          transform: scale(0.92);
+          background: rgba(99, 102, 241, 0.15);
+        }
+
+        .mob-topbar-brand {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex: 1;
+          cursor: pointer;
+          background: none;
+          border: none;
+          color: inherit;
+          font-family: inherit;
+          padding: 0 0.5rem;
+        }
+
+        .mob-topbar-logo {
+          width: 32px;
+          height: 32px;
+          border-radius: 9px;
+          background: linear-gradient(135deg, #6366f1, #a855f7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+          flex-shrink: 0;
+          animation: logoGlow 3s ease-in-out infinite;
+        }
+
+        .mob-topbar-title {
+          font-size: 1rem;
+          font-weight: 800;
+          letter-spacing: -0.01em;
+          background: linear-gradient(135deg, #6366f1, #a855f7);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        .mob-topbar-actions {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          flex-shrink: 0;
+        }
+
+        .mob-topbar-icon-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.05);
+          border: none;
+          color: rgba(255, 255, 255, 0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        [data-theme="light"] .mob-topbar-icon-btn {
+          background: rgba(0, 0, 0, 0.04);
+          color: rgba(15, 23, 42, 0.6);
+        }
+
+        .mob-topbar-icon-btn:active {
+          transform: scale(0.9);
+        }
+
+        /* User greeting inside sidebar (mobile only) */
+        .sidebar-user-greeting {
+          display: none;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 16px;
+          margin: 0 12px 8px;
+          border-radius: 12px;
+          background: rgba(99, 102, 241, 0.08);
+          border: 1px solid rgba(99, 102, 241, 0.15);
+        }
+
+        [data-theme="light"] .sidebar-user-greeting {
+          background: rgba(99, 102, 241, 0.06);
+          border-color: rgba(99, 102, 241, 0.12);
+        }
+
+        .sug-avatar {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #6366f1, #a855f7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          color: white;
+          font-size: 1rem;
+          flex-shrink: 0;
+        }
+
+        .sug-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .sug-name {
+          display: block;
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: white;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        [data-theme="light"] .sug-name {
+          color: #0f172a;
+        }
+
+        .sug-role {
+          display: block;
+          font-size: 0.65rem;
+          color: rgba(255, 255, 255, 0.45);
+          text-transform: capitalize;
+          font-weight: 600;
+        }
+
+        [data-theme="light"] .sug-role {
+          color: rgba(15, 23, 42, 0.45);
+        }
+
+        .sug-status {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #10b981;
+          box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+          flex-shrink: 0;
+          animation: pulse 2s ease-in-out infinite;
+        }
+
+        /* Mobile close button inside sidebar */
+        .sidebar-mobile-close {
+          display: none;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.5);
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          margin-left: auto;
+          flex-shrink: 0;
+          transition: all 0.2s ease;
+        }
+
+        [data-theme="light"] .sidebar-mobile-close {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(0, 0, 0, 0.08);
+          color: rgba(15, 23, 42, 0.5);
+        }
+
+        /* ─────────────────────────────────────────
+           SIDEBAR WRAPPER & PREMIUM SIDEBAR
+           ───────────────────────────────────────── */
         .sidebar-wrapper {
           position: fixed;
           left: 0;
@@ -294,8 +613,9 @@ export default function Sidebar() {
         .sidebar-top {
           padding: 24px 20px;
           display: flex;
-          flex-direction: column;
-          gap: 16px;
+          flex-direction: row;
+          align-items: center;
+          gap: 10px;
           position: relative;
           z-index: 1;
         }
@@ -308,6 +628,8 @@ export default function Sidebar() {
           padding: 8px;
           border-radius: 12px;
           transition: all 0.3s ease;
+          flex: 1;
+          min-width: 0;
         }
 
         .brand-section:hover {
@@ -316,6 +638,7 @@ export default function Sidebar() {
 
         .brand-logo {
           position: relative;
+          flex-shrink: 0;
         }
 
         .logo-ring {
@@ -364,6 +687,7 @@ export default function Sidebar() {
 
         .brand-info {
           flex: 1;
+          min-width: 0;
         }
 
         .brand-name {
@@ -490,7 +814,6 @@ export default function Sidebar() {
           background: rgba(10, 132, 255, 0.2);
           border-color: rgba(10, 132, 255, 0.3);
         }
-
 
         .sidebar-navigation {
           flex: 1;
@@ -705,6 +1028,21 @@ export default function Sidebar() {
           box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
+        .online-indicator-small {
+          position: absolute;
+          bottom: -2px;
+          right: -2px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #10b981;
+          border: 2px solid #0a0e1a;
+        }
+
+        [data-theme="light"] .online-indicator-small {
+          border-color: #f8fafc;
+        }
+
         .bottom-action-btn {
           width: 40px;
           height: 40px;
@@ -716,6 +1054,8 @@ export default function Sidebar() {
           justify-content: center;
           transition: all 0.3s ease;
           flex-shrink: 0;
+          border: none;
+          cursor: pointer;
         }
 
         [data-theme="light"] .bottom-action-btn {
@@ -743,83 +1083,24 @@ export default function Sidebar() {
           color: #ef4444;
         }
 
-        .mobile-menu-btn {
-          position: fixed;
-          top: 16px;
-          left: 16px;
-          width: 48px;
-          height: 48px;
-          border-radius: 14px;
-          background: linear-gradient(135deg, #6366f1, #a855f7);
-          border: none;
-          color: white;
-          display: none;
-          align-items: center;
-          justify-content: center;
-          z-index: 1100;
-          backdrop-filter: blur(12px);
-          box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          cursor: pointer;
-        }
-
-        [data-theme="light"] .mobile-menu-btn {
-          background: linear-gradient(135deg, #6366f1, #a855f7);
-          color: white;
-          box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
-        }
-
-        .mobile-menu-btn:hover {
-          transform: scale(1.08);
-          box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5);
-        }
-
-        .mobile-menu-btn:active {
-          transform: scale(0.95);
-        }
-
         .mobile-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.6);
+          background: rgba(0, 0, 0, 0.65);
           z-index: 999;
-          backdrop-filter: blur(4px);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          animation: fadeInOverlay 0.25s ease;
         }
 
-        @media (max-width: 768px) {
-          .mobile-menu-btn {
-            display: flex;
-          }
-
-          .sidebar-wrapper {
-            transform: translateX(-100%);
-          }
-
-          .sidebar-wrapper.mobile-open {
-            transform: translateX(0);
-          }
-
-          .sidebar-premium {
-            width: 300px !important;
-            box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
-          }
-
-          .collapse-btn {
-            display: none;
-          }
-
-          .mobile-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 999;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            animation: fadeIn 0.2s ease;
-          }
+        @keyframes fadeInOverlay {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
 
-        /* ── Mobile Bottom Nav ── */
+        /* ─────────────────────────────────────────
+           MOBILE BOTTOM NAVIGATION BAR
+           ───────────────────────────────────────── */
         .mobile-bottom-nav {
           display: none;
           position: fixed;
@@ -827,16 +1108,15 @@ export default function Sidebar() {
           left: 0;
           right: 0;
           z-index: 1050;
-          background: rgba(10, 14, 26, 0.95);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 0.4rem 0;
-          padding-bottom: max(0.4rem, env(safe-area-inset-bottom));
+          background: rgba(10, 14, 26, 0.97);
+          backdrop-filter: blur(24px) saturate(180%);
+          -webkit-backdrop-filter: blur(24px) saturate(180%);
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
         }
 
         [data-theme="light"] .mobile-bottom-nav {
-          background: rgba(255, 255, 255, 0.95);
+          background: rgba(255, 255, 255, 0.97);
           border-top: 1px solid rgba(0, 0, 0, 0.08);
         }
 
@@ -844,49 +1124,101 @@ export default function Sidebar() {
           display: flex;
           justify-content: space-around;
           align-items: center;
+          height: 60px;
           max-width: 100%;
+          padding: 0 4px;
         }
 
         .mobile-bottom-nav-item {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 2px;
-          padding: 0.3rem 0.5rem;
-          border-radius: 10px;
+          gap: 3px;
+          padding: 0.4rem 0.6rem;
+          border-radius: 12px;
           text-decoration: none;
-          color: rgba(255, 255, 255, 0.4);
-          font-size: 0.55rem;
+          color: rgba(255, 255, 255, 0.38);
+          font-size: 0.52rem;
           font-weight: 600;
-          transition: all 0.2s ease;
+          letter-spacing: 0.03em;
+          transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
           cursor: pointer;
           background: none;
           border: none;
-          min-width: 56px;
+          min-width: 52px;
           -webkit-tap-highlight-color: transparent;
+          position: relative;
+          font-family: inherit;
+          flex: 1;
         }
 
         [data-theme="light"] .mobile-bottom-nav-item {
-          color: rgba(15, 23, 42, 0.4);
+          color: rgba(15, 23, 42, 0.38);
         }
 
         .mobile-bottom-nav-item.active {
           color: #818cf8;
-          background: rgba(99, 102, 241, 0.1);
         }
 
         [data-theme="light"] .mobile-bottom-nav-item.active {
           color: #6366f1;
-          background: rgba(99, 102, 241, 0.1);
         }
 
         .mobile-bottom-nav-item:active {
-          transform: scale(0.9);
+          transform: scale(0.88);
+        }
+
+        .mbn-icon-wrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+        }
+
+        .mobile-bottom-nav-item.active .mbn-icon-wrap::before {
+          content: '';
+          position: absolute;
+          inset: -4px;
+          border-radius: 10px;
+          background: rgba(99, 102, 241, 0.12);
+          animation: mbnActive 0.3s ease;
+        }
+
+        [data-theme="light"] .mobile-bottom-nav-item.active .mbn-icon-wrap::before {
+          background: rgba(99, 102, 241, 0.1);
+        }
+
+        @keyframes mbnActive {
+          from { transform: scale(0.5); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+
+        .mbn-active-pip {
+          position: absolute;
+          bottom: -6px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: #818cf8;
+          box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+        }
+
+        [data-theme="light"] .mbn-active-pip {
+          background: #6366f1;
         }
 
         .mobile-bottom-nav-icon {
           width: 22px;
           height: 22px;
+          transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .mobile-bottom-nav-item.active .mobile-bottom-nav-icon {
+          transform: scale(1.15) translateY(-1px);
         }
 
         .mobile-bottom-nav-label {
@@ -895,17 +1227,67 @@ export default function Sidebar() {
           text-overflow: ellipsis;
           max-width: 56px;
           text-align: center;
+          text-transform: uppercase;
+          font-size: 0.5rem;
+          letter-spacing: 0.04em;
         }
 
+        /* ─────────────────────────────────────────
+           RESPONSIVE BREAKPOINTS
+           ───────────────────────────────────────── */
         @media (max-width: 768px) {
+          .mob-topbar {
+            display: flex;
+          }
+
+          .sidebar-wrapper {
+            transform: translateX(-100%);
+            top: 0;
+          }
+
+          .sidebar-wrapper.mobile-open {
+            transform: translateX(0);
+          }
+
+          .sidebar-premium {
+            width: min(300px, 85vw) !important;
+            box-shadow: 8px 0 40px rgba(0, 0, 0, 0.6);
+            height: 100dvh;
+            height: 100vh;
+            overflow-y: auto;
+          }
+
+          .sidebar-mobile-close {
+            display: flex;
+          }
+
+          .sidebar-user-greeting {
+            display: flex;
+          }
+
+          .collapse-btn {
+            display: none !important;
+          }
+
           .mobile-bottom-nav {
             display: block;
           }
         }
 
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+        @media (max-width: 480px) {
+          .mob-topbar {
+            height: 56px;
+            padding: 0 0.75rem;
+          }
+
+          .mobile-bottom-nav-inner {
+            height: 56px;
+          }
+
+          .mobile-bottom-nav-item {
+            min-width: 44px;
+            padding: 0.3rem 0.4rem;
+          }
         }
       `}</style>
     </>
