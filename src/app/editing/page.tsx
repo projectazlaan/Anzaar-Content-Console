@@ -6,6 +6,7 @@ import RoleGuard from "@/components/RoleGuard";
 import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { uploadEditedAsset, getInstructionPresets } from "@/lib/actions";
+import { useImageViewer } from "@/components/ImageViewerProvider";
 import { getDisplayUrl } from "@/lib/utils";
 import {
   PenTool,
@@ -45,6 +46,7 @@ export default function EditingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("pending");
   const [presets, setPresets] = useState<string[]>([]);
+  const { openViewer } = useImageViewer();
 
   useEffect(() => {
     const q = query(collection(db, "products"), where("status", "==", "Pending Edit"));
@@ -216,7 +218,7 @@ export default function EditingPage() {
                         className={`eh-task-item ${isActive ? "eh-task-active" : ""}`}
                         onClick={() => setSelectedTask(task)}
                       >
-                        <div className="eh-task-thumb">
+                        <div className="eh-task-thumb" onClick={(e) => { e.stopPropagation(); openViewer(task); }}>
                           {thumbUrl ? (
                             <img src={thumbUrl} alt={task.name} />
                           ) : (
@@ -261,7 +263,7 @@ export default function EditingPage() {
                 <div className="eh-editor-form">
                   {/* Preview Header */}
                   <div className="eh-editor-header">
-                    <div className="eh-editor-preview">
+                    <div className="eh-editor-preview" onClick={() => openViewer(selectedTask)} style={{ cursor: 'pointer' }}>
                       {(() => {
                         const thumbUrl = getDisplayUrl(selectedTask.thumbnailUrl) || getDisplayUrl(selectedTask.mainDesignUrl || selectedTask.designUrl, selectedTask.mainDesignId || selectedTask.designId);
                         return thumbUrl ? (
