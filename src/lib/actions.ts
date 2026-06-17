@@ -1,33 +1,23 @@
 "use server";
 
-import { db } from "./firebase";
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  serverTimestamp, 
-  getDocs, 
-  getDoc,
-  setDoc,
-  query, 
-  orderBy,
-  deleteDoc,
-  where,
-  limit
-} from "firebase/firestore";
+import { adminDb, admin } from "./firebase-admin";
 import { uploadFileToDrive, getDriveImageUrl, getOrCreateFolder } from "./drive";
 import { Readable } from "stream";
 
+const ts = () => admin.firestore.FieldValue.serverTimestamp();
+const col = (name: string) => adminDb.collection(name);
+const docRef = (name: string, id: string) => adminDb.collection(name).doc(id);
+const snapData = (d: any) => ({ id: d.id, ...d.data() });
+
 async function createNotif(data: { title: string; message: string; type?: string; actionType?: string }) {
   try {
-    await addDoc(collection(db, "notifications"), {
+    await col("notifications").add({
       title: data.title,
       message: data.message,
       type: data.type || "info",
       actionType: data.actionType || "general",
       read: false,
-      createdAt: serverTimestamp(),
+      createdAt: ts(),
     });
   } catch (e) {
     console.error("Failed to create notification:", e);
@@ -57,14 +47,14 @@ export async function createProduct(formData: FormData) {
       designParentId
     );
 
-    const docRef = await addDoc(collection(db, "products"), {
+    const docRef = await col("products").add({
       name,
       category,
       status: "Pending Direction",
       designUrl: driveFile.webViewLink,
       designId: driveFile.id,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      createdAt: ts(),
+      updatedAt: ts(),
     });
 
     createNotif({ title: "New Product Created", message: `${name} has been created and is pending direction`, type: "success", actionType: "product_created" });
@@ -87,7 +77,6 @@ export async function createBulkProducts(formData: FormData) {
     const dateStr = new Date().toISOString().split('T')[0];
     const designParentId = await getOrCreateFolder(dateStr, process.env.GOOGLE_DRIVE_DESIGNS_FOLDER_ID as string);
 
-    // Upload all files to Drive in parallel
     const uploadPromises = files.map(async (file, index) => {
       const buffer = Buffer.from(await file.arrayBuffer());
       const stream = Readable.from(buffer);
@@ -110,37 +99,32 @@ export async function createBulkProducts(formData: FormData) {
 
     const uploadedFiles = await Promise.all(uploadPromises);
     
-    // Create variations array
     const variations = uploadedFiles.map((file, index) => ({
       ...file,
       label: `Variation ${index + 1}`,
-      // Generate displayable thumbnail URL
       thumbnailUrl: file.id ? getDriveImageUrl(file.id) : null,
     }));
 
-    // Create single product document with variations
     const productData: any = {
       name,
       category,
       status: "Pending Direction",
       mainDesignUrl: uploadedFiles[0].url,
       mainDesignId: uploadedFiles[0].id,
-      // Add thumbnail URL for display
       thumbnailUrl: uploadedFiles[0].id ? getDriveImageUrl(uploadedFiles[0].id) : null,
       variations,
       variationCount: uploadedFiles.length,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      createdAt: ts(),
+      updatedAt: ts(),
     };
 
-    // Keep backward compatibility - also store designUrl for old queries
     if (uploadedFiles.length === 1) {
       productData.designUrl = uploadedFiles[0].url;
       productData.designId = uploadedFiles[0].id;
       productData.thumbnailUrl = uploadedFiles[0].id ? getDriveImageUrl(uploadedFiles[0].id) : null;
     }
 
-    const docRef = await addDoc(collection(db, "products"), productData);
+    const docRef = await col("products").add(productData);
     
     createNotif({ title: "Bulk Products Created", message: `${name} created with ${uploadedFiles.length} variations`, type: "success", actionType: "bulk_created" });
     
@@ -153,11 +137,10 @@ export async function createBulkProducts(formData: FormData) {
 
 export async function submitDirection(productId: string, shootDir: string, editDir: string) {
   try {
-    const productRef = doc(db, "products", productId);
-    await updateDoc(productRef, {
+    await docRef("products", productId).update({
       status: "Pending Shoot",
       directions: { shoot: shootDir, edit: editDir },
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
     createNotif({ title: "Direction Submitted", message: `Directions provided, status set to Pending Shoot`, type: "info", actionType: "direction_submitted" });
     return { success: true };
@@ -168,10 +151,9 @@ export async function submitDirection(productId: string, shootDir: string, editD
 
 export async function markAsShot(productId: string) {
   try {
-    const productRef = doc(db, "products", productId);
-    await updateDoc(productRef, {
+    await docRef("products", productId).update({
       status: "Pending Selection",
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
     createNotif({ title: "Marked as Shot", message: `Product status set to Pending Selection`, type: "success", actionType: "marked_shot" });
     return { success: true };
@@ -184,9 +166,8 @@ export async function uploadRawAssets(productId: string, formData: FormData) {
   const files = formData.getAll("files") as File[];
   
   try {
-    // Get product name for folder
-    const productSnap = await getDoc(doc(db, "products", productId));
-    const productName = productSnap.exists() ? productSnap.data().name : productId;
+    const productSnap = await docRef("products", productId).get();
+    const productName = productSnap.exists ? (productSnap.data()?.name || productId) : productId;
     
     const shootParentId = await getOrCreateFolder(productName, process.env.GOOGLE_DRIVE_SHOOTS_FOLDER_ID as string);
 
@@ -205,11 +186,10 @@ export async function uploadRawAssets(productId: string, formData: FormData) {
     const rawUrls = results.map(r => r.webViewLink);
     const rawIds = results.map(r => r.id);
 
-    const productRef = doc(db, "products", productId);
-    await updateDoc(productRef, {
+    await docRef("products", productId).update({
       rawUrls: rawUrls,
       rawIds: rawIds,
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
 
     createNotif({ title: "Raw Assets Uploaded", message: `${files.length} raw asset(s) uploaded`, type: "success", actionType: "raw_uploaded" });
@@ -227,9 +207,8 @@ export async function uploadEditedAsset(productId: string, formData: FormData) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const stream = Readable.from(buffer);
     
-    // Get product name for folder
-    const productSnap = await getDoc(doc(db, "products", productId));
-    const productName = productSnap.exists() ? productSnap.data().name : productId;
+    const productSnap = await docRef("products", productId).get();
+    const productName = productSnap.exists ? (productSnap.data()?.name || productId) : productId;
     
     const editParentId = await getOrCreateFolder(productName, process.env.GOOGLE_DRIVE_EDITS_FOLDER_ID as string);
 
@@ -240,11 +219,10 @@ export async function uploadEditedAsset(productId: string, formData: FormData) {
       editParentId
     );
 
-    const productRef = doc(db, "products", productId);
-    await updateDoc(productRef, {
+    await docRef("products", productId).update({
       editedUrl: result.webViewLink,
       status: "Pending Review",
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
 
     createNotif({ title: "Edited Asset Uploaded", message: `Edited file uploaded, status set to Pending Review`, type: "success", actionType: "edit_uploaded" });
@@ -257,10 +235,9 @@ export async function uploadEditedAsset(productId: string, formData: FormData) {
 
 export async function submitForReview(productId: string) {
   try {
-    const productRef = doc(db, "products", productId);
-    await updateDoc(productRef, {
+    await docRef("products", productId).update({
       status: "Pending Review",
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
     createNotif({ title: "Submitted for Review", message: `Product submitted for review`, type: "info", actionType: "submitted_review" });
     return { success: true };
@@ -271,7 +248,7 @@ export async function submitForReview(productId: string) {
 
 export async function deleteProduct(productId: string) {
   try {
-    await deleteDoc(doc(db, "products", productId));
+    await docRef("products", productId).delete();
     createNotif({ title: "Product Deleted", message: `Product has been removed`, type: "warning", actionType: "product_deleted" });
     return { success: true };
   } catch (error: any) {
@@ -283,8 +260,8 @@ export async function deleteProduct(productId: string) {
 
 export async function getInstructionPresets() {
   try {
-    const snapshot = await getDocs(query(collection(db, "instruction_presets"), orderBy("text", "asc")));
-    return snapshot.docs.map(doc => ({ id: doc.id, text: doc.data().text }));
+    const snapshot = await col("instruction_presets").orderBy("text", "asc").get();
+    return snapshot.docs.map((d: any) => ({ id: d.id, text: d.data().text }));
   } catch (error) {
     console.error("Error getting presets:", error);
     return [];
@@ -292,12 +269,12 @@ export async function getInstructionPresets() {
 }
 
 export async function addInstructionPreset(text: string) {
-  const docRef = await addDoc(collection(db, "instruction_presets"), { text });
+  const docRef = await col("instruction_presets").add({ text });
   return { id: docRef.id, text };
 }
 
 export async function removeInstructionPreset(id: string) {
-  await deleteDoc(doc(db, "instruction_presets", id));
+  await docRef("instruction_presets", id).delete();
   return { success: true };
 }
 
@@ -305,8 +282,8 @@ export async function removeInstructionPreset(id: string) {
 
 export async function getCategories() {
   try {
-    const snapshot = await getDocs(query(collection(db, "categories"), orderBy("name", "asc")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const snapshot = await col("categories").orderBy("name", "asc").get();
+    return snapshot.docs.map((d: any) => snapData(d));
   } catch (error) {
     console.error("Error getting categories:", error);
     return [];
@@ -315,10 +292,7 @@ export async function getCategories() {
 
 export async function addCategory(name: string) {
   try {
-    const docRef = await addDoc(collection(db, "categories"), { 
-      name,
-      createdAt: serverTimestamp() 
-    });
+    const docRef = await col("categories").add({ name, createdAt: ts() });
     return { success: true, id: docRef.id };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -327,7 +301,7 @@ export async function addCategory(name: string) {
 
 export async function removeCategory(id: string) {
   try {
-    await deleteDoc(doc(db, "categories", id));
+    await docRef("categories", id).delete();
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -336,12 +310,7 @@ export async function removeCategory(id: string) {
 
 export async function updateUserRole(uid: string, role: string, permissions: any) {
   try {
-    const userRef = doc(db, "users", uid);
-    await updateDoc(userRef, {
-      role,
-      permissions,
-      updatedAt: serverTimestamp(),
-    });
+    await docRef("users", uid).update({ role, permissions, updatedAt: ts() });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -350,7 +319,7 @@ export async function updateUserRole(uid: string, role: string, permissions: any
 
 export async function deleteUser(uid: string) {
   try {
-    await deleteDoc(doc(db, "users", uid));
+    await docRef("users", uid).delete();
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -359,8 +328,7 @@ export async function deleteUser(uid: string) {
 
 export async function initializeUserAccount(uid: string, email: string) {
   try {
-    // Check if this is the first user
-    const usersSnap = await getDocs(query(collection(db, "users"), limit(1)));
+    const usersSnap = await col("users").limit(1).get();
     const isFirstUser = usersSnap.empty;
 
     console.log('Initializing user account:', { uid, email, isFirstUser, existingUsers: !usersSnap.empty });
@@ -370,13 +338,13 @@ export async function initializeUserAccount(uid: string, email: string) {
       { view: true, edit: true, delete: true } : 
       { view: true, edit: false, delete: false };
 
-    await setDoc(doc(db, "users", uid), {
+    await col("users").doc(uid).set({
       email,
       role,
       permissions,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      createdAt: ts(),
+      updatedAt: ts(),
+    }, { merge: true });
 
     console.log('User account initialized:', { uid, role, isFirstUser });
 
@@ -387,15 +355,14 @@ export async function initializeUserAccount(uid: string, email: string) {
   }
 }
 
-// Force set user as admin (for emergency fix)
 export async function forceSetAsAdmin(uid: string) {
   try {
     console.log('Force setting user as admin:', uid);
     
-    await updateDoc(doc(db, "users", uid), {
+    await docRef("users", uid).update({
       role: "admin",
       permissions: { view: true, edit: true, delete: true },
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
 
     console.log('User successfully set as admin:', uid);
@@ -410,8 +377,8 @@ export async function forceSetAsAdmin(uid: string) {
 
 export async function getMasterTemplates() {
   try {
-    const snapshot = await getDocs(query(collection(db, "master_templates"), orderBy("name", "asc")));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const snapshot = await col("master_templates").orderBy("name", "asc").get();
+    return snapshot.docs.map((d: any) => snapData(d));
   } catch (error) {
     console.error("Error getting master templates:", error);
     return [];
@@ -419,30 +386,24 @@ export async function getMasterTemplates() {
 }
 
 export async function addMasterTemplate(name: string, shoot: string, edit: string) {
-  const docRef = await addDoc(collection(db, "master_templates"), { 
-    name, 
-    shoot, 
-    edit,
-    createdAt: serverTimestamp() 
-  });
+  const docRef = await col("master_templates").add({ name, shoot, edit, createdAt: ts() });
   return { id: docRef.id, name, shoot, edit };
 }
 
 export async function removeMasterTemplate(id: string) {
-  await deleteDoc(doc(db, "master_templates", id));
+  await docRef("master_templates", id).delete();
   return { success: true };
 }
 
 export async function submitBulkDirections(productIds: string[], shootDir: string, editDir: string) {
   try {
-    const promises = productIds.map(id => {
-      const productRef = doc(db, "products", id);
-      return updateDoc(productRef, {
+    const promises = productIds.map(id => 
+      docRef("products", id).update({
         status: "Pending Shoot",
         directions: { shoot: shootDir, edit: editDir },
-        updatedAt: serverTimestamp(),
-      });
-    });
+        updatedAt: ts(),
+      })
+    );
     
     await Promise.all(promises);
     createNotif({ title: "Bulk Directions Submitted", message: `Directions provided for ${productIds.length} products`, type: "info", actionType: "bulk_directions" });
@@ -455,40 +416,35 @@ export async function submitBulkDirections(productIds: string[], shootDir: strin
 
 export async function submitSelection(productId: string, selectedAssets: Record<string, 'three-quarter' | 'half' | 'full'>) {
   try {
-    const productRef = doc(db, "products", productId);
-    const productSnap = await getDoc(productRef);
+    const productRef = docRef("products", productId);
+    const productSnap = await productRef.get();
     
-    if (!productSnap.exists()) {
+    if (!productSnap.exists) {
       return { success: false, error: "Product not found" };
     }
 
-    const productData = productSnap.data();
+    const productData = productSnap.data() || {};
     const productName = productData.name || 'product';
     
-    // Get the date in format "Apr 28, 26"
     const now = new Date();
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const dateStr = `${months[now.getMonth()]} ${now.getDate()}, ${String(now.getFullYear()).slice(-2)}`;
     const folderName = `Selected - ${dateStr}`;
     
-    // Create or get date-based folder in Google Drive
     const { getOrCreateFolder, getDriveService } = await import("@/lib/drive");
     const driveFolderId = await getOrCreateFolder(folderName);
     
-    // Copy files to the new folder with crop ratio in name
     const drive = await getDriveService();
     const selectedUrls: string[] = [];
     const cropRatios: Record<string, string> = {};
     
     for (const [url, ratio] of Object.entries(selectedAssets)) {
-      // Extract file ID from URL
       const match = url.match(/[-\w]{25,}/);
       if (!match) continue;
       
       const fileId = match[0];
       
       try {
-        // Get original file metadata
         const fileMetadata = await drive.files.get({
           fileId,
           fields: "name, mimeType",
@@ -499,10 +455,8 @@ export async function submitSelection(productId: string, selectedAssets: Record<
         const nameWithoutExt = originalName.replace(/\.[^/.]+$/, "");
         const extension = originalName.match(/\.[^/.]+$/)?.[0] || '.jpg';
         
-        // New filename with crop ratio
         const newName = `${nameWithoutExt}-${ratio}${extension}`;
         
-        // Copy file to new folder with new name
         const copiedFile = await drive.files.copy({
           fileId,
           requestBody: {
@@ -519,19 +473,17 @@ export async function submitSelection(productId: string, selectedAssets: Record<
         }
       } catch (error) {
         console.error(`Failed to copy file ${fileId}:`, error);
-        // Fallback: keep original URL
         selectedUrls.push(url);
         cropRatios[fileId] = ratio;
       }
     }
     
-    // Update Firestore with selected assets and crop ratios
-    await updateDoc(productRef, {
+    await productRef.update({
       status: "Pending Edit",
       selectedAssetUrls: selectedUrls,
       cropRatios: cropRatios,
       selectedDate: now.toISOString(),
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
     
     createNotif({ title: "Selection Submitted", message: `Assets selected with crop ratios, status set to Pending Edit`, type: "success", actionType: "selection_submitted" });
@@ -545,10 +497,9 @@ export async function submitSelection(productId: string, selectedAssets: Record<
 
 export async function approveProduct(productId: string) {
   try {
-    const productRef = doc(db, "products", productId);
-    await updateDoc(productRef, {
+    await docRef("products", productId).update({
       status: "Completed",
-      updatedAt: serverTimestamp(),
+      updatedAt: ts(),
     });
     createNotif({ title: "Product Approved", message: `Product has been completed and approved`, type: "success", actionType: "product_approved" });
     return { success: true };
@@ -559,13 +510,12 @@ export async function approveProduct(productId: string) {
 
 export async function submitBulkStatusUpdate(productIds: string[], targetStatus: string) {
   try {
-    const promises = productIds.map(id => {
-      const productRef = doc(db, "products", id);
-      return updateDoc(productRef, {
+    const promises = productIds.map(id => 
+      docRef("products", id).update({
         status: targetStatus,
-        updatedAt: serverTimestamp(),
-      });
-    });
+        updatedAt: ts(),
+      })
+    );
     
     await Promise.all(promises);
     createNotif({ title: "Bulk Status Update", message: `${productIds.length} products updated to ${targetStatus}`, type: "info", actionType: "bulk_status" });
@@ -577,8 +527,8 @@ export async function submitBulkStatusUpdate(productIds: string[], targetStatus:
 
 export async function getUserData(uid: string) {
   try {
-    const userDoc = await getDoc(doc(db, "users", uid));
-    if (userDoc.exists()) {
+    const userDoc = await docRef("users", uid).get();
+    if (userDoc.exists) {
       return { success: true, data: userDoc.data() };
     }
     return { success: false, error: "User data not found" };
@@ -590,14 +540,14 @@ export async function getUserData(uid: string) {
 
 export async function createNotification(data: { userId: string; title: string; message: string; type: string; link?: string }) {
   try {
-    await addDoc(collection(db, "notifications"), {
+    await col("notifications").add({
       userId: data.userId,
       title: data.title,
       message: data.message,
       type: data.type || "info",
       link: data.link || "",
       read: false,
-      createdAt: serverTimestamp(),
+      createdAt: ts(),
     });
     return { success: true };
   } catch (error: any) {
@@ -608,14 +558,12 @@ export async function createNotification(data: { userId: string; title: string; 
 
 export async function getProductHistory(productId: string) {
   try {
-    const q = query(
-      collection(db, "audit_logs"),
-      where("productId", "==", productId),
-      orderBy("createdAt", "desc"),
-      limit(20)
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const snapshot = await col("audit_logs")
+      .where("productId", "==", productId)
+      .orderBy("createdAt", "desc")
+      .limit(20)
+      .get();
+    return snapshot.docs.map((d: any) => snapData(d));
   } catch (error: any) {
     console.error("Error fetching product history:", error);
     return [];
@@ -624,9 +572,8 @@ export async function getProductHistory(productId: string) {
 
 export async function getDesignerRequests() {
   try {
-    const q = query(collection(db, "designer_requests"), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const snapshot = await col("designer_requests").orderBy("createdAt", "desc").get();
+    return snapshot.docs.map((d: any) => snapData(d));
   } catch (error: any) {
     console.error("Error fetching designer requests:", error);
     return [];
@@ -635,7 +582,7 @@ export async function getDesignerRequests() {
 
 export async function updateCategory(id: string, name: string) {
   try {
-    await updateDoc(doc(db, "categories", id), { name, updatedAt: serverTimestamp() });
+    await docRef("categories", id).update({ name, updatedAt: ts() });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -644,13 +591,9 @@ export async function updateCategory(id: string, name: string) {
 
 export async function bulkUpdateProductStatus(productIds: string[], status: string) {
   try {
-    const promises = productIds.map(id => {
-      const productRef = doc(db, "products", id);
-      return updateDoc(productRef, {
-        status: status,
-        updatedAt: serverTimestamp(),
-      });
-    });
+    const promises = productIds.map(id => 
+      docRef("products", id).update({ status, updatedAt: ts() })
+    );
     await Promise.all(promises);
     createNotif({ title: "Bulk Status Update", message: `${productIds.length} products updated to ${status}`, type: "info", actionType: "bulk_status_update" });
     return { success: true, count: productIds.length };
@@ -661,7 +604,7 @@ export async function bulkUpdateProductStatus(productIds: string[], status: stri
 
 export async function updateDesignerRequestStatus(requestId: string, status: string) {
   try {
-    await updateDoc(doc(db, "designer_requests", requestId), { status, updatedAt: serverTimestamp() });
+    await docRef("designer_requests", requestId).update({ status, updatedAt: ts() });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -670,7 +613,7 @@ export async function updateDesignerRequestStatus(requestId: string, status: str
 
 export async function createDesignerRequest(data: { productId: string; productName: string; productThumb: string; type: string; instructions: string; createdBy: string }) {
   try {
-    await addDoc(collection(db, "designer_requests"), {
+    await col("designer_requests").add({
       productId: data.productId,
       productName: data.productName,
       productThumb: data.productThumb,
@@ -678,10 +621,91 @@ export async function createDesignerRequest(data: { productId: string; productNa
       instructions: data.instructions,
       createdBy: data.createdBy,
       status: "pending",
-      createdAt: serverTimestamp(),
+      createdAt: ts(),
     });
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+}
+
+export async function getProducts() {
+  try {
+    const snapshot = await col("products").orderBy("createdAt", "desc").get();
+    return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+  } catch (error: any) {
+    console.error("Error fetching products:", error);
+    return [];
+  }
+}
+
+export async function getAllUsers() {
+  try {
+    const snapshot = await col("users").get();
+    return snapshot.docs.map((d: any) => ({ uid: d.id, ...d.data() }));
+  } catch (error: any) {
+    console.error("Error fetching users:", error);
+    return [];
+  }
+}
+
+export async function getNotifications(userId: string) {
+  try {
+    const snapshot = await col("notifications")
+      .where("userId", "==", userId)
+      .orderBy("createdAt", "desc")
+      .limit(50)
+      .get();
+    return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+  } catch (error: any) {
+    console.error("Error fetching notifications:", error);
+    return [];
+  }
+}
+
+export async function markNotificationRead(notificationId: string) {
+  try {
+    await docRef("notifications", notificationId).update({ read: true });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function bulkMarkNotificationsRead(notificationIds: string[]) {
+  try {
+    const promises = notificationIds.map(id => 
+      docRef("notifications", id).update({ read: true })
+    );
+    await Promise.all(promises);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getUserRole(uid: string) {
+  try {
+    const userDoc = await docRef("users", uid).get();
+    if (userDoc.exists) {
+      const d = userDoc.data();
+      return { success: true, role: d?.role, permissions: d?.permissions };
+    }
+    return { success: false, error: "User not found" };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getProductsByCategory(category: string) {
+  try {
+    const snapshot = await col("products")
+      .where("category", "==", category)
+      .orderBy("createdAt", "desc")
+      .get();
+    return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+  } catch (error: any) {
+    console.error("Error fetching products by category:", error);
+    return [];
   }
 }
