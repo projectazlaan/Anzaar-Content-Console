@@ -7,7 +7,20 @@ import { Readable } from "stream";
 const ts = () => admin.firestore.FieldValue.serverTimestamp();
 const col = (name: string) => adminDb.collection(name);
 const docRef = (name: string, id: string) => adminDb.collection(name).doc(id);
-const snapData = (d: any) => ({ id: d.id, ...d.data() });
+const snapData = (d: any) => serialize({ id: d.id, ...d.data() });
+const serialize = (obj: any): any => {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'object' && obj.constructor?.name === 'Timestamp') {
+    return obj.toDate().toISOString();
+  }
+  if (Array.isArray(obj)) return obj.map(serialize);
+  if (typeof obj === 'object' && Object.getPrototypeOf(obj) === Object.prototype) {
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj)) result[k] = serialize(v);
+    return result;
+  }
+  return obj;
+};
 
 async function createNotif(data: { title: string; message: string; type?: string; actionType?: string }) {
   try {
@@ -632,7 +645,7 @@ export async function createDesignerRequest(data: { productId: string; productNa
 export async function getProducts() {
   try {
     const snapshot = await col("products").orderBy("createdAt", "desc").get();
-    return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((d: any) => snapData(d));
   } catch (error: any) {
     console.error("Error fetching products:", error);
     return [];
@@ -642,7 +655,7 @@ export async function getProducts() {
 export async function getAllUsers() {
   try {
     const snapshot = await col("users").get();
-    return snapshot.docs.map((d: any) => ({ uid: d.id, ...d.data() }));
+    return snapshot.docs.map((d: any) => serialize({ uid: d.id, ...d.data() }));
   } catch (error: any) {
     console.error("Error fetching users:", error);
     return [];
@@ -656,7 +669,7 @@ export async function getNotifications(userId: string) {
       .orderBy("createdAt", "desc")
       .limit(50)
       .get();
-    return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((d: any) => snapData(d));
   } catch (error: any) {
     console.error("Error fetching notifications:", error);
     return [];
@@ -703,7 +716,7 @@ export async function getProductsByCategory(category: string) {
       .where("category", "==", category)
       .orderBy("createdAt", "desc")
       .get();
-    return snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((d: any) => snapData(d));
   } catch (error: any) {
     console.error("Error fetching products by category:", error);
     return [];
