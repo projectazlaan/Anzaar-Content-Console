@@ -5,10 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2, Download, Info,
   ImageOff, Play, Pause, Keyboard, ExternalLink, Loader2,
-  RotateCw, RotateCcw, FlipHorizontal, FlipVertical,
-  Sun, Contrast, Droplets, Grid3X3, Crosshair,
-  Pipette, Layers, Monitor,
-  Copy, Check, ChevronDown,
+  RotateCw, RotateCcw, Sun, Contrast, Droplets, Grid3X3,
+  Pipette, Monitor, Copy, Check, ChevronDown, Minus, Plus,
 } from "lucide-react";
 import { getDisplayUrl } from "@/lib/utils";
 
@@ -19,1390 +17,455 @@ interface ImageViewerProps {
   initialIndex?: number;
 }
 
-const SWIPE_THRESHOLD = 60;
-
-type GridMode = "off" | "thirds" | "cross" | "golden";
-type FitMode = "fit" | "fill" | "original";
+const SHORTCUTS = [
+  { k: "← →", d: "Navigate" }, { k: "Esc", d: "Close" },
+  { k: "+ / -", d: "Zoom" }, { k: "0", d: "Reset" },
+  { k: "Space", d: "Slideshow" }, { k: "F", d: "Fullscreen" },
+  { k: "I", d: "Info" }, { k: "R", d: "Rotate" },
+  { k: "G", d: "Grid" }, { k: "A", d: "Adjust" },
+  { k: "C", d: "Color pick" }, { k: "T", d: "Thumbs" },
+  { k: "D", d: "Download" }, { k: "?", d: "Shortcuts" },
+];
 
 export default function ImageViewer({ isOpen, onClose, product, initialIndex = 0 }: ImageViewerProps) {
-  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [idx, setIdx] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
-  const [showInfo, setShowInfo] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
-  const [imgError, setImgError] = useState(false);
-  const [imgLoading, setImgLoading] = useState(true);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [swipeX, setSwipeX] = useState(0);
-  const [isSwiping, setIsSwiping] = useState(false);
-  const [showKeyboard, setShowKeyboard] = useState(false);
-  const [slideshowActive, setSlideshowActive] = useState(false);
-  const [showThumbnails, setShowThumbnails] = useState(true);
-  const [gridMode, setGridMode] = useState<GridMode>("off");
-  const [fitMode, setFitMode] = useState<FitMode>("fit");
-  const [rotation, setRotation] = useState(0);
-  const [flipH, setFlipH] = useState(false);
-  const [flipV, setFlipV] = useState(false);
-  const [brightness, setBrightness] = useState(100);
-  const [contrast, setContrast] = useState(100);
-  const [saturation, setSaturation] = useState(100);
-  const [showAdjust, setShowAdjust] = useState(false);
-  const [colorPicker, setColorPicker] = useState(false);
-  const [pickedColor, setPickedColor] = useState("#ffffff");
-  const [pickedPos, setPickedPos] = useState({ x: 0, y: 0 });
+  const [fit, setFit] = useState(true);
+  const [info, setInfo] = useState(false);
+  const [err, setErr] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [drag, setDrag] = useState(false);
+  const [dp, setDp] = useState({ x: 0, y: 0 });
+  const [ds, setDs] = useState({ x: 0, y: 0 });
+  const [swipe, setSwipe] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const [kb, setKb] = useState(false);
+  const [slide, setSlide] = useState(false);
+  const [thumbs, setThumbs] = useState(true);
+  const [grid, setGrid] = useState<0|1|2>(0);
+  const [rot, setRot] = useState(0);
+  const [bright, setBright] = useState(100);
+  const [contr, setContr] = useState(100);
+  const [sat, setSat] = useState(100);
+  const [adj, setAdj] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [pColor, setPColor] = useState("");
   const [copied, setCopied] = useState(false);
-  const [lensActive, setLensActive] = useState(false);
-  const [lensPos, setLensPos] = useState({ x: 0, y: 0 });
-  const [showLens, setShowLens] = useState(false);
-  const [showCompare, setShowCompare] = useState(false);
-  const [showMinimap, setShowMinimap] = useState(false);
-  const [minimapPos, setMinimapPos] = useState({ x: 0, y: 0 });
-  const [showShare, setShowShare] = useState(false);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const thumbsRef = useRef<HTMLDivElement>(null);
-  const slideshowRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
-  const lensRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const picRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const outRef = useRef<HTMLDivElement>(null);
+  const slideRef = useRef<any>(null);
 
-  const variations = useMemo(() => {
+  const items = useMemo(() => {
     if (!product) return [];
-    if (product.variations && product.variations.length > 0) return product.variations;
-    if (product.rawUrls && product.rawUrls.length > 0) {
-      return product.rawUrls.map((url: string, i: number) => ({ url, id: product.rawIds?.[i] }));
-    }
-    const singleUrl = product.mainDesignUrl || product.designUrl || product.url || product.thumbnailUrl;
-    const singleId = product.mainDesignId || product.designId || product.id;
-    if (typeof product === 'string') return [{ url: product }];
-    if (singleUrl) return [{ url: singleUrl, id: singleId }];
-    return [];
+    if (product.variations?.length) return product.variations;
+    if (product.rawUrls?.length) return product.rawUrls.map((u: string, i: number) => ({ url: u, id: product.rawIds?.[i] }));
+    const u = product.mainDesignUrl || product.designUrl || product.url || product.thumbnailUrl;
+    const id = product.mainDesignId || product.designId || product.id;
+    return u ? [{ url: u, id }] : typeof product === 'string' ? [{ url: product }] : [];
   }, [product]);
 
-  const totalItems = variations.length;
-  const currentItem = variations[activeIndex];
-  const currentSrc = useMemo(() => getDisplayUrl(currentItem?.url, currentItem?.id, 2000) || '', [currentItem]);
-  const currentThumb = useMemo(() => getDisplayUrl(currentItem?.url, currentItem?.id, 80) || '', [currentItem]);
+  const total = items.length;
+  const cur = items[idx];
+  const src = useMemo(() => getDisplayUrl(cur?.url, cur?.id, 2000) || '', [cur]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
-  const [imageSize, setImageSize] = useState({ w: 100, h: 100 });
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        setContainerSize({ w: entry.contentRect.width, h: entry.contentRect.height });
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isOpen]);
-
-  const naturalZoom = useMemo(() => {
-    if (fitMode === "original") return 1;
-    const scaleX = (containerSize.w - 80) / imageSize.w;
-    const scaleY = (containerSize.h - 80) / imageSize.h;
-    const baseFit = Math.min(scaleX, scaleY, 1);
-    if (fitMode === "fill") return Math.max(scaleX, scaleY);
-    return baseFit;
-  }, [fitMode, containerSize, imageSize]);
-
-  const displayZoom = fitMode === "fit" || fitMode === "fill" ? zoom * naturalZoom : zoom;
-
-  // ── Reset on open ──
   useEffect(() => {
     if (isOpen) {
-      setActiveIndex(initialIndex);
-      setZoom(1);
-      setFitMode("fit");
-      setImgError(false);
-      setImgLoading(true);
-      setDragPos({ x: 0, y: 0 });
-      setSwipeX(0);
-      setShowInfo(false);
-      setRotation(0);
-      setFlipH(false);
-      setFlipV(false);
-      setBrightness(100);
-      setContrast(100);
-      setSaturation(100);
-      setGridMode("off");
-      setColorPicker(false);
-      setShowAdjust(false);
-      setShowCompare(false);
-      setShowMinimap(false);
+      setIdx(initialIndex); setZoom(1); setFit(true); setErr(false);
+      setLoading(true); setDp({x:0,y:0}); setSwipe(0); setInfo(false);
+      setRot(0); setBright(100); setContr(100); setSat(100);
+      setGrid(0); setPicker(false); setAdj(false);
     }
   }, [isOpen, initialIndex]);
 
-  // ── Slideshow ──
   useEffect(() => {
-    if (slideshowActive && totalItems > 1) {
-      slideshowRef.current = setInterval(() => {
-        setActiveIndex(prev => { const next = (prev + 1) % totalItems; resetZoom(); return next; });
-      }, 3000);
+    if (slide && total > 1) {
+      slideRef.current = setInterval(() => { setIdx(p => (p+1)%total); resetView(); }, 3000);
     }
-    return () => { if (slideshowRef.current) clearInterval(slideshowRef.current); };
-  }, [slideshowActive, totalItems]);
-
-  // ── Fullscreen ──
-  const toggleFullScreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-    else document.exitFullscreen();
-  };
+    return () => { if (slideRef.current) clearInterval(slideRef.current); };
+  }, [slide, total]);
 
   useEffect(() => {
-    const fn = () => setIsFullScreen(!!document.fullscreenElement);
+    const fn = () => {};
     document.addEventListener("fullscreenchange", fn);
     return () => document.removeEventListener("fullscreenchange", fn);
   }, []);
 
-  const resetZoom = () => {
-    setZoom(1);
-    setFitMode("fit");
-    setImgError(false);
-    setImgLoading(true);
-    setDragPos({ x: 0, y: 0 });
-    setRotation(0);
-    setFlipH(false);
-    setFlipV(false);
-  };
+  const resetView = () => { setZoom(1); setFit(true); setErr(false); setLoading(true); setDp({x:0,y:0}); setRot(0); };
 
-  const goTo = useCallback((i: number) => {
-    if (slideshowActive) setSlideshowActive(false);
-    setActiveIndex(Math.max(0, Math.min(i, totalItems - 1)));
-    resetZoom();
-  }, [slideshowActive, totalItems]);
+  const go = useCallback((i: number) => {
+    if (slide) setSlide(false);
+    setIdx(Math.max(0, Math.min(i, total-1)));
+    resetView();
+  }, [slide, total]);
 
-  const nextImage = useCallback(() => {
-    if (totalItems <= 1) return;
-    goTo((activeIndex + 1) % totalItems);
-  }, [totalItems, activeIndex, goTo]);
+  const next = useCallback(() => total>1 && go((idx+1)%total), [total, idx, go]);
+  const prev = useCallback(() => total>1 && go((idx-1+total)%total), [total, idx, go]);
 
-  const prevImage = useCallback(() => {
-    if (totalItems <= 1) return;
-    goTo((activeIndex - 1 + totalItems) % totalItems);
-  }, [totalItems, activeIndex, goTo]);
+  const dl = useCallback((s=2000) => { const u = getDisplayUrl(cur?.url, cur?.id, s); if (u) window.open(u, '_blank'); }, [cur]);
 
-  const handleDownload = useCallback((size = 2000) => {
-    const url = getDisplayUrl(currentItem?.url, currentItem?.id, size);
-    if (url) window.open(url, '_blank');
-  }, [currentItem]);
-
-  const handleCopyLink = useCallback(() => {
-    const url = getDisplayUrl(currentItem?.url, currentItem?.id, 2000);
-    if (url) {
-      navigator.clipboard.writeText(url).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
-    }
-  }, [currentItem]);
-
-  // ── Keyboard ──
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { if (showKeyboard) { setShowKeyboard(false); return; } if (showInfo) { setShowInfo(false); return; } if (showAdjust) { setShowAdjust(false); return; } onClose(); return; }
-      if (e.key === "ArrowRight") { nextImage(); return; }
-      if (e.key === "ArrowLeft") { prevImage(); return; }
-      if (e.key === "+" || e.key === "=") { e.preventDefault(); setZoom(z => Math.min(5, z + 0.25)); setFitMode("original"); return; }
-      if (e.key === "-" || e.key === "_") { e.preventDefault(); setZoom(z => Math.max(0.5, z - 0.25)); setFitMode("original"); return; }
-      if (e.key === "f" || e.key === "F") { toggleFullScreen(); return; }
-      if (e.key === "i" || e.key === "I") { setShowInfo(s => !s); return; }
-      if (e.key === " ") { e.preventDefault(); if (totalItems > 1) setSlideshowActive(s => !s); return; }
-      if (e.key === "t" || e.key === "T") { setShowThumbnails(s => !s); return; }
-      if (e.key === "?") { setShowKeyboard(s => !s); return; }
-      if (e.key === "d" || e.key === "D") { handleDownload(); return; }
-      if (e.key === "0") { resetZoom(); return; }
-      if (e.key === "g" || e.key === "G") { setGridMode(m => m === "off" ? "thirds" : m === "thirds" ? "cross" : m === "cross" ? "golden" : "off"); return; }
-      if (e.key === "r") { setRotation(r => r + 90); return; }
-      if (e.key === "R") { setRotation(r => r - 90); return; }
-      if (e.key === "a" || e.key === "A") { setShowAdjust(s => !s); return; }
-      if (e.key === "l" || e.key === "L") { setShowLens(s => !s); return; }
-      if (e.key === "c" || e.key === "C") { setColorPicker(s => !s); return; }
-      if (e.key === "m" || e.key === "M") { setShowMinimap(s => !s); return; }
-      if (e.key === "b" || e.key === "B") { setShowCompare(s => !s); return; }
+    const h = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { if (kb) { setKb(false); return; } if (info) { setInfo(false); return; } if (adj) { setAdj(false); return; } onClose(); return; }
+      if (e.key === "ArrowRight") { next(); return; }
+      if (e.key === "ArrowLeft") { prev(); return; }
+      if (e.key === "+" || e.key === "=") { e.preventDefault(); setZoom(z=>Math.min(8,z+0.25)); setFit(false); return; }
+      if (e.key === "-" || e.key === "_") { e.preventDefault(); setZoom(z=>Math.max(0.5,z-0.25)); setFit(false); return; }
+      if (e.key === "0") { resetView(); return; }
+      if (e.key === " ") { e.preventDefault(); total>1 && setSlide(s=>!s); return; }
+      if (e.key === "f" || e.key === "F") { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); return; }
+      if (e.key === "i" || e.key === "I") { setInfo(s=>!s); return; }
+      if (e.key === "t" || e.key === "T") { setThumbs(s=>!s); return; }
+      if (e.key === "g" || e.key === "G") { setGrid(g=>((g+1)%3) as 0|1|2); return; }
+      if (e.key === "r" || e.key === "R") { setRot(r=>r+90); return; }
+      if (e.key === "a" || e.key === "A") { setAdj(s=>!s); return; }
+      if (e.key === "c" || e.key === "C") { setPicker(s=>!s); setPColor(""); return; }
+      if (e.key === "d" || e.key === "D") { dl(); return; }
+      if (e.key === "?") { setKb(s=>!s); return; }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose, nextImage, prevImage, handleDownload, showKeyboard, showInfo, showAdjust, totalItems]);
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [isOpen, onClose, next, prev, dl, kb, info, adj, total]);
 
-  // ── Scroll wheel zoom ──
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    if (e.ctrlKey || e.metaKey) return;
-    setZoom(prev => {
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      return Math.max(0.5, Math.min(8, prev + delta));
-    });
-    setFitMode("original");
+    setZoom(z => Math.max(0.5, Math.min(8, z + (e.deltaY>0?-0.1:0.1))));
+    setFit(false);
   }, []);
 
-  // ── Mouse drag to pan ──
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (displayZoom <= 1 && fitMode === "fit") return;
-    if (e.button !== 0) return;
-    e.preventDefault();
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - dragPos.x, y: e.clientY - dragPos.y });
-  }, [displayZoom, dragPos, fitMode]);
+  const md = useCallback((e: React.MouseEvent) => {
+    if (zoom<=1 && fit) return;
+    if (e.button!==0) return; e.preventDefault();
+    setDrag(true); setDs({x: e.clientX-dp.x, y: e.clientY-dp.y});
+  }, [zoom, dp, fit]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging) {
-      setDragPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-    }
-    if (showLens && imageRef.current && !isDragging) {
-      const rect = imageRef.current.getBoundingClientRect();
-      setLensPos({
-        x: ((e.clientX - rect.left) / rect.width) * 100,
-        y: ((e.clientY - rect.top) / rect.height) * 100,
-      });
-      setLensActive(true);
-    }
-  }, [isDragging, dragStart, showLens]);
+  const mm = useCallback((e: React.MouseEvent) => {
+    if (drag) setDp({x: e.clientX-ds.x, y: e.clientY-ds.y});
+  }, [drag, ds]);
 
-  const handleMouseUp = useCallback(() => setIsDragging(false), []);
+  const mu = useCallback(() => setDrag(false), []);
 
-  // ── Color Picker ──
-  const handleImageClick = useCallback((e: React.MouseEvent) => {
-    if (!colorPicker || !imageRef.current) return;
-    const rect = imageRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * imageSize.w;
-    const y = ((e.clientY - rect.top) / rect.height) * imageSize.h;
-    setPickedPos({ x: e.clientX, y: e.clientY });
+  const pickColor = useCallback((e: React.MouseEvent) => {
+    if (!picker || !imgRef.current || !picRef.current) return;
+    const r = imgRef.current.getBoundingClientRect();
+    const ctx = picRef.current.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(imgRef.current, 0, 0, imgRef.current.naturalWidth, imgRef.current.naturalHeight);
+    const px = ctx.getImageData(
+      Math.round(((e.clientX-r.left)/r.width)*imgRef.current.naturalWidth),
+      Math.round(((e.clientY-r.top)/r.height)*imgRef.current.naturalHeight), 1, 1
+    ).data;
+    setPColor('#'+[px[0],px[1],px[2]].map(v=>v.toString(16).padStart(2,'0')).join(''));
+  }, [picker]);
 
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(imageRef.current, 0, 0, imageSize.w, imageSize.h);
-        const p = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data;
-        const hex = '#' + [p[0], p[1], p[2]].map(v => v.toString(16).padStart(2, '0')).join('');
-        setPickedColor(hex);
-      }
-    }
-  }, [colorPicker, imageSize]);
+  const tStart = useRef({x:0,y:0,t:0});
 
-  // ── Touch / Swipe ──
-  const touchStartRef = useRef<{ x: number; y: number; t: number }>({ x: 0, y: 0, t: 0 });
-  const touchDistRef = useRef(0);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
-      setIsSwiping(true);
-    }
-    if (e.touches.length === 2) {
-      touchDistRef.current = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-    }
+  const ts = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length===1) { tStart.current = {x:e.touches[0].clientX, y:e.touches[0].clientY, t:Date.now()}; setSwiping(true); }
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const delta = dist - touchDistRef.current;
-      setZoom(prev => Math.max(0.5, Math.min(8, prev + delta * 0.01)));
-      setFitMode("original");
-      touchDistRef.current = dist;
-      return;
-    }
-    if (e.touches.length === 1 && isSwiping && displayZoom <= 1.1) {
-      setSwipeX(e.touches[0].clientX - touchStartRef.current.x);
-    }
-  }, [isSwiping, displayZoom]);
+  const tm = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length===1 && swiping && zoom<=1.1) setSwipe(e.touches[0].clientX-tStart.current.x);
+  }, [swiping, zoom]);
 
-  const handleTouchEnd = useCallback(() => {
-    if (isSwiping && displayZoom <= 1.1) {
-      const dx = swipeX;
-      const dt = Date.now() - touchStartRef.current.t;
-      if (Math.abs(dx) > SWIPE_THRESHOLD || (Math.abs(dx) > 30 && dt < 300)) {
-        if (dx < 0) nextImage(); else prevImage();
-      }
+  const te = useCallback(() => {
+    if (swiping && zoom<=1.1) {
+      const dx = swipe, dt = Date.now()-tStart.current.t;
+      if (Math.abs(dx)>50 || (Math.abs(dx)>30 && dt<300)) dx<0 ? next() : prev();
     }
-    setIsSwiping(false);
-    setSwipeX(0);
-  }, [isSwiping, swipeX, displayZoom, nextImage, prevImage]);
+    setSwiping(false); setSwipe(0);
+  }, [swiping, swipe, zoom, next, prev]);
 
-  // ── Auto-scroll thumbs ──
+  const oc = useCallback((e: React.MouseEvent) => { if (e.target===outRef.current) onClose(); }, [onClose]);
+
+  const [vw, setVw] = useState(800);
+  const [vh, setVh] = useState(600);
   useEffect(() => {
-    if (thumbsRef.current && showThumbnails) {
-      const child = thumbsRef.current.children[activeIndex] as HTMLElement;
-      if (child) child.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
-  }, [activeIndex, showThumbnails]);
+    if (typeof window === 'undefined') return;
+    const fn = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
+    fn();
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
-  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === overlayRef.current) onClose();
-  }, [onClose]);
-
-  // ── Computed style ──
-  const filterStyle = useMemo(() => ({
-    brightness: `${brightness / 100}`,
-    contrast: `${contrast / 100}`,
-    saturate: `${saturation / 100}`,
-  }), [brightness, contrast, saturation]);
-
-  const transformStyle = useMemo(() => {
-    const parts: string[] = [];
-    if (flipH) parts.push('scaleX(-1)');
-    if (flipV) parts.push('scaleY(-1)');
-    if (rotation) parts.push(`rotate(${rotation}deg)`);
-    if (displayZoom > 0) parts.push(`scale(${displayZoom})`);
-    if ((displayZoom > 1 || fitMode !== "fit") && (isDragging || dragPos.x !== 0 || dragPos.y !== 0)) {
-      const validX = isFinite(dragPos.x / displayZoom) ? dragPos.x / displayZoom : 0;
-      const validY = isFinite(dragPos.y / displayZoom) ? dragPos.y / displayZoom : 0;
-      parts.push(`translate(${validX}px, ${validY}px)`);
-    }
-    return parts.join(' ');
-  }, [flipH, flipV, rotation, displayZoom, dragPos, isDragging, fitMode]);
-
-  const isZoomed = displayZoom > 1.05 || fitMode !== "fit" || rotation !== 0;
-
-  const shortcutRows = [
-    { keys: "← →", desc: "Navigate" },
-    { keys: "Esc", desc: "Close / Back" },
-    { keys: "+ / -", desc: "Zoom in / out" },
-    { keys: "0", desc: "Reset view" },
-    { keys: "Space", desc: "Slideshow" },
-    { keys: "F", desc: "Fullscreen" },
-    { keys: "I", desc: "Info panel" },
-    { keys: "R", desc: "Rotate 90°" },
-    { keys: "G", desc: "Grid overlay" },
-    { keys: "A", desc: "Adjustments" },
-    { keys: "L", desc: "Lens zoom" },
-    { keys: "C", desc: "Color picker" },
-    { keys: "B", desc: "Compare" },
-    { keys: "M", desc: "Minimap" },
-    { keys: "T", desc: "Thumbnails" },
-    { keys: "D", desc: "Download" },
-  ];
+  const filt = useMemo(() => `brightness(${bright/100}) contrast(${contr/100}) saturate(${sat/100})`, [bright, contr, sat]);
+  const transf = useMemo(() => {
+    const p: string[] = [];
+    if (rot) p.push(`rotate(${rot}deg)`);
+    const nw = imgRef.current?.naturalWidth || 100;
+    const nh = imgRef.current?.naturalHeight || 100;
+    const z = zoom * (fit ? Math.min((vw-80)/nw, (vh-120)/nh, 1) : 1);
+    if (z) p.push(`scale(${z})`);
+    if ((z>1||!fit) && (drag||dp.x||dp.y)) p.push(`translate(${dp.x/z||0}px, ${dp.y/z||0}px)`);
+    return p.join(' ');
+  }, [rot, zoom, fit, dp, drag, vw, vh]);
+  const zoomed = zoom>1.05||!fit||rot!==0;
 
   return (
-    <AnimatePresence>
-      {isOpen && product && (
-        <motion.div
-          ref={overlayRef}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="gv-overlay"
-          onClick={handleOverlayClick}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* ── TOP BAR ── */}
-          <header className="gv-topbar">
-            <div className="gv-topbar-left">
-              <button onClick={onClose} className="gv-btn-ghost" title="Close (Esc)">
-                <X size={20} />
-              </button>
-              <div className="gv-title-block">
-                <h3 className="gv-title">{product?.name || "Preview"}</h3>
-                <span className="gv-counter">{activeIndex + 1} / {totalItems}</span>
-              </div>
-            </div>
-
-            <div className="gv-topbar-center">
-              <div className="gv-tool-group">
-                <button onClick={() => { setZoom(z => Math.max(0.5, z - 0.25)); setFitMode("original"); }} className="gv-tool-btn" title="Zoom Out (-)">
-                  <ZoomOut size={14} />
+    <>
+      <AnimatePresence>
+        {isOpen && product && (
+          <motion.div
+            ref={outRef}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="iv"
+            onClick={oc}
+            onTouchStart={ts}
+            onTouchMove={tm}
+            onTouchEnd={te}
+          >
+            {/* TOP BAR */}
+            <div className="iv-bar">
+              <div className="iv-bl">
+                <button onClick={onClose} className="iv-bt iv-bt-g" title="Close (Esc)">
+                  <X size={18} />
                 </button>
-                <span className="gv-zoom-label">{Math.round(displayZoom * 100)}%</span>
-                <button onClick={() => { setZoom(1); setFitMode("fit"); }} className="gv-tool-btn gv-tool-btn-sm" title="Fit to screen (0)">
-                  <Monitor size={13} />
-                </button>
-                <button onClick={() => { setZoom(z => Math.min(8, z + 0.25)); setFitMode("original"); }} className="gv-tool-btn" title="Zoom In (+)">
-                  <ZoomIn size={14} />
-                </button>
-                <div className="gv-tool-sep" />
-                <button onClick={() => setRotation(r => r - 90)} className="gv-tool-btn" title="Rotate Left (Shift+R)">
-                  <RotateCcw size={14} />
-                </button>
-                <button onClick={() => setRotation(r => r + 90)} className="gv-tool-btn" title="Rotate Right (R)">
-                  <RotateCw size={14} />
-                </button>
-                <button onClick={() => setFlipH(f => !f)} className={`gv-tool-btn ${flipH ? 'gv-tool-active' : ''}`} title="Flip Horizontal">
-                  <FlipHorizontal size={14} />
-                </button>
-                <button onClick={() => setFlipV(f => !f)} className={`gv-tool-btn ${flipV ? 'gv-tool-active' : ''}`} title="Flip Vertical">
-                  <FlipVertical size={14} />
-                </button>
-              </div>
-            </div>
-
-            <div className="gv-topbar-right">
-              <button
-                onClick={() => { setShowLens(s => !s); setColorPicker(false); }}
-                className={`gv-tool-btn ${showLens ? 'gv-tool-active' : ''}`}
-                title="Lens Zoom (L)"
-              >
-                <ZoomIn size={14} />
-                <span className="gv-btn-dot" />
-              </button>
-              <button
-                onClick={() => { setColorPicker(s => !s); setShowLens(false); }}
-                className={`gv-tool-btn ${colorPicker ? 'gv-tool-active' : ''}`}
-                title="Color Picker (C)"
-              >
-                <Pipette size={14} />
-              </button>
-              <button onClick={() => setGridMode(m => m === "off" ? "thirds" : m === "thirds" ? "cross" : m === "cross" ? "golden" : "off")} className={`gv-tool-btn ${gridMode !== 'off' ? 'gv-tool-active' : ''}`} title="Grid Overlay (G)">
-                <Grid3X3 size={14} />
-              </button>
-              <button onClick={() => setShowCompare(s => !s)} className={`gv-tool-btn ${showCompare ? 'gv-tool-active' : ''}`} title="Before/After Compare (B)">
-                <Layers size={14} />
-              </button>
-              <button onClick={() => setShowAdjust(s => !s)} className={`gv-tool-btn ${showAdjust ? 'gv-tool-active' : ''}`} title="Adjustments (A)">
-                <Sun size={14} />
-              </button>
-              <button onClick={() => setShowInfo(s => !s)} className={`gv-tool-btn ${showInfo ? 'gv-tool-active' : ''}`} title="Info (I)">
-                <Info size={14} />
-              </button>
-              <div className="gv-tool-sep" />
-              <div className="gv-tool-btn-wrapper">
-                <button onClick={() => handleDownload(2000)} className="gv-tool-btn" title="Download (D)">
-                  <Download size={14} />
-                </button>
-                <button onClick={() => setShowShare(s => !s)} className="gv-tool-btn" title="Share">
-                  <Copy size={13} />
-                </button>
-              </div>
-              {totalItems > 1 && (
-                <button onClick={() => setSlideshowActive(s => !s)} className={`gv-tool-btn ${slideshowActive ? 'gv-tool-active' : ''}`} title="Slideshow (Space)">
-                  {slideshowActive ? <Pause size={14} /> : <Play size={14} />}
-                </button>
-              )}
-              <button onClick={() => setShowMinimap(s => !s)} className={`gv-tool-btn ${showMinimap ? 'gv-tool-active' : ''}`} title="Minimap (M)">
-                <ChevronDown size={14} />
-              </button>
-              <button onClick={toggleFullScreen} className="gv-tool-btn" title="Fullscreen (F)">
-                <Maximize2 size={14} />
-              </button>
-              <button onClick={() => setShowKeyboard(s => !s)} className="gv-tool-btn" title="Shortcuts (?)">
-                <Keyboard size={14} />
-              </button>
-            </div>
-          </header>
-
-          {/* ── ADJUSTMENTS BAR ── */}
-          <AnimatePresence>
-            {showAdjust && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="gv-adjust-bar"
-              >
-                <div className="gv-adjust-inner">
-                  <div className="gv-adjust-item">
-                    <Sun size={12} />
-                    <span className="gv-adjust-label">Brightness</span>
-                    <input type="range" min="0" max="200" value={brightness} onChange={e => setBrightness(Number(e.target.value))} className="gv-range" />
-                    <span className="gv-adjust-val">{brightness}%</span>
-                  </div>
-                  <div className="gv-adjust-item">
-                    <Contrast size={12} />
-                    <span className="gv-adjust-label">Contrast</span>
-                    <input type="range" min="0" max="200" value={contrast} onChange={e => setContrast(Number(e.target.value))} className="gv-range" />
-                    <span className="gv-adjust-val">{contrast}%</span>
-                  </div>
-                  <div className="gv-adjust-item">
-                    <Droplets size={12} />
-                    <span className="gv-adjust-label">Saturation</span>
-                    <input type="range" min="0" max="200" value={saturation} onChange={e => setSaturation(Number(e.target.value))} className="gv-range" />
-                    <span className="gv-adjust-val">{saturation}%</span>
-                  </div>
-                  <button onClick={() => { setBrightness(100); setContrast(100); setSaturation(100); }} className="gv-adjust-reset">Reset</button>
+                <div className="iv-bt-t">
+                  <h3>{product?.name||"Preview"}</h3>
+                  <span className="iv-bt-c">{idx+1}/{total}</span>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
 
-          {/* ── MAIN STAGE ── */}
-          <div className="gv-stage-wrap" ref={containerRef}>
-            {totalItems > 1 && (
-              <button className="gv-nav gv-nav-prev" onClick={prevImage} title="Previous (←)">
-                <ChevronLeft size={28} />
-              </button>
-            )}
-
-            <div
-              ref={stageRef}
-              className="gv-stage"
-              onWheel={handleWheel}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onClick={handleImageClick}
-              style={{
-                cursor: colorPicker ? 'crosshair' : isDragging ? 'grabbing' : isZoomed ? 'grab' : 'default',
-              }}
-            >
-              {imgLoading && !imgError && (
-                <div className="gv-loader"><Loader2 size={36} className="gv-spin" /></div>
-              )}
-
-              {imgError ? (
-                <div className="gv-error-state">
-                  <div className="gv-error-icon"><ImageOff size={48} /></div>
-                  <p>Failed to load image</p>
-                  {currentItem?.url && (
-                    <a href={currentItem.url} target="_blank" className="gv-error-link">
-                      <ExternalLink size={12} /> Open in Drive
-                    </a>
-                  )}
+              <div className="iv-bc">
+                <div className="iv-tg">
+                  <button onClick={()=>{setZoom(z=>Math.max(0.5,z-0.25)); setFit(false);}} className="iv-tb" title="Zoom Out (-)"><ZoomOut size={13}/></button>
+                  <span className="iv-tl">{Math.round(zoom*(fit?Math.min(1,1):1)*100)}%</span>
+                  <button onClick={()=>{setZoom(1); setFit(true);}} className="iv-tb" title="Reset (0)"><Monitor size={12}/></button>
+                  <button onClick={()=>{setZoom(z=>Math.min(8,z+0.25)); setFit(false);}} className="iv-tb" title="Zoom In (+)"><ZoomIn size={13}/></button>
+                  <span className="iv-sep" />
+                  <button onClick={()=>setRot(r=>r-90)} className="iv-tb" title="Rotate Left"><RotateCcw size={13}/></button>
+                  <button onClick={()=>setRot(r=>r+90)} className="iv-tb" title="Rotate Right (R)"><RotateCw size={13}/></button>
                 </div>
-              ) : (
-                <>
-                  {showCompare && variations[activeIndex + 1] && (
-                    <div className="gv-compare-wrap">
-                      <img
-                        src={getDisplayUrl(variations[activeIndex + 1]?.url, variations[activeIndex + 1]?.id, 2000) || ''}
-                        className="gv-compare-img"
-                        alt="Compare"
-                        draggable={false}
-                      />
-                      <div className="gv-compare-label">Variant {activeIndex + 2}</div>
-                    </div>
-                  )}
-                  <motion.img
-                    key={activeIndex}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.25 }}
-                    ref={imageRef}
-                    src={currentSrc}
-                    className="gv-main-img"
-                    draggable={false}
-                    style={{
-                      filter: `brightness(${filterStyle.brightness}) contrast(${filterStyle.contrast}) saturate(${filterStyle.saturate})`,
-                      transform: transformStyle,
-                    }}
-                    onError={() => { setImgError(true); setImgLoading(false); }}
-                    onLoad={(e) => {
-                      setImgError(false);
-                      setImgLoading(false);
-                      const img = e.target as HTMLImageElement;
-                      setImageSize({ w: img.naturalWidth, h: img.naturalHeight });
-                    }}
-                  />
+              </div>
 
-                  {/* Grid Overlay */}
-                  {gridMode !== "off" && (
-                    <svg className="gv-grid-overlay" viewBox="0 0 100 100" preserveAspectRatio="none">
-                      {gridMode === "thirds" && (
-                        <>
-                          <line x1="33.33" y1="0" x2="33.33" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          <line x1="66.67" y1="0" x2="66.67" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          <line x1="0" y1="33.33" x2="100" y2="33.33" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          <line x1="0" y1="66.67" x2="100" y2="66.67" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          {[33.33, 66.67].map(x => [33.33, 66.67].map(y => (
-                            <circle key={`${x}-${y}`} cx={x} cy={y} r="1" fill="rgba(255,255,255,0.3)" />
-                          )))}
-                        </>
-                      )}
-                      {gridMode === "cross" && (
-                        <>
-                          <line x1="50" y1="0" x2="50" y2="100" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" />
-                          <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" />
-                          <circle cx="50" cy="50" r="25" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
-                          <circle cx="50" cy="50" r="1.5" fill="rgba(255,255,255,0.3)" />
-                        </>
-                      )}
-                      {gridMode === "golden" && (
-                        <>
-                          <line x1="38.2" y1="0" x2="38.2" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          <line x1="61.8" y1="0" x2="61.8" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          <line x1="0" y1="38.2" x2="100" y2="38.2" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          <line x1="0" y1="61.8" x2="100" y2="61.8" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
-                          <rect x="38.2" y="38.2" width="23.6" height="23.6" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
-                        </>
-                      )}
-                    </svg>
-                  )}
-
-                  {/* Color picker indicator */}
-                  {colorPicker && pickedColor && (
-                    <div className="gv-color-indicator" style={{ left: pickedPos.x + 16, top: pickedPos.y - 16 }}>
-                      <span className="gv-color-swatch" style={{ background: pickedColor }} />
-                      <span className="gv-color-hex">{pickedColor}</span>
-                      <button className="gv-color-copy" onClick={() => {
-                        navigator.clipboard.writeText(pickedColor).then(() => {
-                          setCopied(true);
-                          setTimeout(() => setCopied(false), 2000);
-                        });
-                      }}>
-                        {copied ? <Check size={10} /> : <Copy size={10} />}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Image label */}
-                  <div className="gv-img-label">
-                    <span>{activeIndex + 1}</span>
-                    {imageSize.w > 0 && <span className="gv-img-dims">{imageSize.w}×{imageSize.h}</span>}
-                  </div>
-                </>
-              )}
+              <div className="iv-br">
+                {total>1 && <button onClick={()=>setSlide(s=>!s)} className={`iv-tb ${slide?'iv-on':''}`} title="Slideshow (Space)">{slide?<Pause size={13}/>:<Play size={13}/>}</button>}
+                <button onClick={()=>setGrid(g=>((g+1)%3)as 0|1|2)} className={`iv-tb ${grid?'iv-on':''}`} title="Grid (G)"><Grid3X3 size={13}/></button>
+                <button onClick={()=>setAdj(s=>!s)} className={`iv-tb ${adj?'iv-on':''}`} title="Adjust (A)"><Sun size={13}/></button>
+                <button onClick={()=>{setPicker(s=>!s); setPColor("");}} className={`iv-tb ${picker?'iv-on':''}`} title="Color (C)"><Pipette size={13}/></button>
+                <button onClick={()=>setInfo(s=>!s)} className={`iv-tb ${info?'iv-on':''}`} title="Info (I)"><Info size={13}/></button>
+                <span className="iv-sep" />
+                <button onClick={()=>dl()} className="iv-tb" title="Download (D)"><Download size={13}/></button>
+                <button onClick={()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()} className="iv-tb" title="Fullscreen (F)">
+                  <Maximize2 size={13}/>
+                </button>
+                <button onClick={()=>setKb(s=>!s)} className="iv-tb" title="Shortcuts (?)"><Keyboard size={13}/></button>
+              </div>
             </div>
 
-            {totalItems > 1 && (
-              <button className="gv-nav gv-nav-next" onClick={nextImage} title="Next (→)">
-                <ChevronRight size={28} />
-              </button>
-            )}
-
-            {/* ── INFO PANEL ── */}
+            {/* ADJUSTMENTS */}
             <AnimatePresence>
-              {showInfo && (
-                <motion.aside
-                  initial={{ x: 360 }}
-                  animate={{ x: 0 }}
-                  exit={{ x: 360 }}
-                  transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                  className="gv-info-panel"
-                >
-                  <div className="gv-info-inner">
-                    <div className="gv-info-section-title">
-                      <Info size={12} />
-                      <span>Details</span>
-                    </div>
-                    <div className="gv-info-block">
-                      <span className="gv-info-label">Product</span>
-                      <span className="gv-info-value">{product?.name || "Untitled"}</span>
-                    </div>
-                    <div className="gv-info-row">
-                      <div className="gv-info-block">
-                        <span className="gv-info-label">Category</span>
-                        <span className="gv-info-value-sm">{product?.category || "—"}</span>
-                      </div>
-                      <div className="gv-info-block">
-                        <span className="gv-info-label">Status</span>
-                        <span className="gv-info-value-sm">{product?.status || "—"}</span>
-                      </div>
-                    </div>
-                    {product?.variationCount && (
-                      <div className="gv-info-block">
-                        <span className="gv-info-label">Variations</span>
-                        <span className="gv-info-value-sm">{product.variationCount}</span>
-                      </div>
-                    )}
-                    {imageSize.w > 0 && (
-                      <div className="gv-info-block">
-                        <span className="gv-info-label">Resolution</span>
-                        <span className="gv-info-value-sm">{imageSize.w} × {imageSize.h}</span>
-                      </div>
-                    )}
-                    {product?.directions && (
-                      <>
-                        <div className="gv-info-divider" />
-                        <div className="gv-info-block">
-                          <span className="gv-info-label">Shoot Direction</span>
-                          <p className="gv-info-text">{product.directions.shoot || "None"}</p>
-                        </div>
-                        <div className="gv-info-block">
-                          <span className="gv-info-label">Edit Direction</span>
-                          <p className="gv-info-text">{product.directions.edit || "None"}</p>
-                        </div>
-                      </>
-                    )}
-                    {currentItem?.url && (
-                      <>
-                        <div className="gv-info-divider" />
-                        <a href={currentItem.url} target="_blank" className="gv-info-link">
-                          <ExternalLink size={11} /> Open in Google Drive
-                        </a>
-                      </>
-                    )}
-                  </div>
-                </motion.aside>
-              )}
-            </AnimatePresence>
-
-            {/* ── SHARE MODAL ── */}
-            <AnimatePresence>
-              {showShare && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="gv-share-modal"
-                >
-                  <div className="gv-share-header">
-                    <Copy size={12} />
-                    <span>Share Image</span>
-                    <button onClick={() => setShowShare(false)} className="gv-share-close"><X size={12} /></button>
-                  </div>
-                  <div className="gv-share-options">
-                    {[2000, 800, 400].map(s => (
-                      <button key={s} onClick={() => handleDownload(s)} className="gv-share-btn">
-                        <Download size={12} />
-                        <span>{s === 2000 ? 'Original' : s === 800 ? 'Large' : 'Thumbnail'}</span>
-                        <span className="gv-share-size">{s}px</span>
-                      </button>
-                    ))}
-                    <button onClick={handleCopyLink} className="gv-share-btn">
-                      {copied ? <Check size={12} /> : <Copy size={12} />}
-                      <span>{copied ? 'Copied!' : 'Copy URL'}</span>
-                    </button>
+              {adj && (
+                <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}} className="iv-adj">
+                  <div className="iv-ai">
+                    <div className="iv-af"><Sun size={11}/><span>Bright</span><input type="range" min="0" max="200" value={bright} onChange={e=>setBright(Number(e.target.value))} /><span className="iv-av">{bright}%</span></div>
+                    <div className="iv-af"><Contrast size={11}/><span>Contrast</span><input type="range" min="0" max="200" value={contr} onChange={e=>setContr(Number(e.target.value))} /><span className="iv-av">{contr}%</span></div>
+                    <div className="iv-af"><Droplets size={11}/><span>Saturate</span><input type="range" min="0" max="200" value={sat} onChange={e=>setSat(Number(e.target.value))} /><span className="iv-av">{sat}%</span></div>
+                    <button onClick={()=>{setBright(100);setContr(100);setSat(100);}} className="iv-ar">Reset</button>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
 
-          {/* ── LENS ZOOM ── */}
-          <AnimatePresence>
-            {showLens && lensActive && currentSrc && !imgError && (
-              <motion.div
-                ref={lensRef}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="gv-lens"
-                style={{
-                  left: `calc(${lensPos.x}% + 20px)`,
-                  top: `calc(${lensPos.y}% - 80px)`,
-                }}
-              >
-                <div
-                  className="gv-lens-img"
-                  style={{
-                    backgroundImage: `url(${currentSrc})`,
-                    backgroundPosition: `${lensPos.x}% ${lensPos.y}%`,
-                    backgroundSize: `${displayZoom * 300}%`,
-                    filter: `brightness(${filterStyle.brightness}) contrast(${filterStyle.contrast}) saturate(${filterStyle.saturate})`,
-                  }}
-                />
-                <div className="gv-lens-crosshair" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+            {/* STAGE */}
+            <div className="iv-stage-wrap">
+              {total>1 && <button className="iv-n iv-np" onClick={prev}><ChevronLeft size={24}/></button>}
 
-          {/* ── KEYBOARD MODAL ── */}
-          <AnimatePresence>
-            {showKeyboard && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="gv-modal-overlay"
-                onClick={() => setShowKeyboard(false)}
-              >
-                <div className="gv-modal" onClick={e => e.stopPropagation()}>
-                  <div className="gv-modal-head">
-                    <Keyboard size={14} />
-                    <span>Keyboard Shortcuts</span>
-                    <button onClick={() => setShowKeyboard(false)} className="gv-modal-close"><X size={14} /></button>
+              <div className="iv-stage" onWheel={handleWheel} onMouseDown={md} onMouseMove={mm} onMouseUp={mu} onMouseLeave={mu} onClick={pickColor}
+                style={{cursor: picker?'crosshair':drag?'grabbing':zoomed?'grab':'default'}}>
+                {loading && !err && <div className="iv-ld"><Loader2 size={32} className="iv-sp"/></div>}
+
+                {err ? (
+                  <div className="iv-er">
+                    <ImageOff size={40}/>
+                    <p>Failed to load</p>
+                    {cur?.url && <a href={cur.url} target="_blank" className="iv-el"><ExternalLink size={11}/> Open in Drive</a>}
                   </div>
-                  <div className="gv-modal-grid">
-                    {shortcutRows.map(s => (
-                      <div key={s.keys} className="gv-modal-row">
-                        <span className="gv-modal-key">{s.keys}</span>
-                        <span className="gv-modal-desc">{s.desc}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* ── MINIMAP ── */}
-          <AnimatePresence>
-            {showMinimap && currentThumb && !imgError && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="gv-minimap"
-              >
-                <div className="gv-minimap-header">
-                  <ChevronDown size={10} />
-                  <span>Navigator</span>
-                  <button onClick={() => setShowMinimap(false)} className="gv-minimap-close"><X size={10} /></button>
-                </div>
-                <div className="gv-minimap-img-wrap">
-                  <img src={currentThumb} alt="minimap" className="gv-minimap-img" draggable={false} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* ── THUMBNAIL STRIP ── */}
-          {totalItems > 1 && showThumbnails && (
-            <div className="gv-thumbs-bar">
-              <div className="gv-thumbs-inner" ref={thumbsRef}>
-                {variations.map((v: any, i: number) => (
-                  <button
-                    key={i}
-                    className={`gv-thumb ${i === activeIndex ? 'gv-thumb-active' : ''}`}
-                    onClick={() => goTo(i)}
-                  >
-                    <img src={getDisplayUrl(v.url, v.id, 120) || ''} alt={`Thumb ${i + 1}`} loading="lazy" />
-                    <span className="gv-thumb-idx">{i + 1}</span>
-                  </button>
-                ))}
+                ) : (
+                  <>
+                    <motion.img key={idx} initial={{opacity:0}} animate={{opacity:1}} transition={{duration:0.2}}
+                      ref={imgRef} src={src} className="iv-img" draggable={false}
+                      style={{filter: filt, transform: transf}}
+                      onError={()=>{setErr(true); setLoading(false);}}
+                      onLoad={()=>{setErr(false); setLoading(false);}}
+                    />
+                    {/* Grid */}
+                    {grid===1 && <svg className="iv-gr" viewBox="0 0 100 100">
+                      <line x1="33.33" y1="0" x2="33.33" y2="100" stroke="rgba(255,255,255,0.12)" strokeWidth="0.5"/>
+                      <line x1="66.67" y1="0" x2="66.67" y2="100" stroke="rgba(255,255,255,0.12)" strokeWidth="0.5"/>
+                      <line x1="0" y1="33.33" x2="100" y2="33.33" stroke="rgba(255,255,255,0.12)" strokeWidth="0.5"/>
+                      <line x1="0" y1="66.67" x2="100" y2="66.67" stroke="rgba(255,255,255,0.12)" strokeWidth="0.5"/>
+                    </svg>}
+                    {grid===2 && <svg className="iv-gr" viewBox="0 0 100 100">
+                      <line x1="50" y1="0" x2="50" y2="100" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+                      <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5"/>
+                      <circle cx="50" cy="50" r="1.5" fill="rgba(255,255,255,0.3)"/>
+                    </svg>}
+                    {/* Color */}
+                    {picker && pColor && <div className="iv-pc"><span className="iv-sw" style={{background:pColor}}/><span className="iv-hx">{pColor}</span>
+                      <button onClick={()=>{navigator.clipboard.writeText(pColor).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);})}} className="iv-cpb">{copied?<Check size={10}/>:<Copy size={10}/>}</button>
+                    </div>}
+                    {/* Label */}
+                    <div className="iv-lb"><span>{idx+1}</span></div>
+                  </>
+                )}
               </div>
+
+              {total>1 && <button className="iv-n iv-nn" onClick={next}><ChevronRight size={24}/></button>}
+
+              {/* INFO */}
+              <AnimatePresence>
+                {info && <motion.aside initial={{x:300}} animate={{x:0}} exit={{x:300}} transition={{type:'spring',damping:28,stiffness:280}} className="iv-inf">
+                  <div className="iv-ii">
+                    <div className="iv-is"><Info size={11}/><span>Details</span></div>
+                    <div className="iv-ib"><span className="iv-il">Product</span><span className="iv-iv">{product?.name||"Untitled"}</span></div>
+                    <div className="iv-ir"><div className="iv-ib"><span className="iv-il">Category</span><span className="iv-isv">{product?.category||"—"}</span></div>
+                      <div className="iv-ib"><span className="iv-il">Status</span><span className="iv-isv">{product?.status||"—"}</span></div></div>
+                    {product?.directions && <><div className="iv-id"/><div className="iv-ib"><span className="iv-il">Shoot</span><p className="iv-it">{product.directions.shoot||"None"}</p></div>
+                      <div className="iv-ib"><span className="iv-il">Edit</span><p className="iv-it">{product.directions.edit||"None"}</p></div></>}
+                    {cur?.url && <><div className="iv-id"/><a href={cur.url} target="_blank" className="iv-ilk"><ExternalLink size={10}/> Open in Drive</a></>}
+                  </div>
+                </motion.aside>}
+              </AnimatePresence>
+
+              {/* Shortcuts */}
+              <AnimatePresence>
+                {kb && <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="iv-kb-bg" onClick={()=>setKb(false)}>
+                  <div className="iv-kb" onClick={e=>e.stopPropagation()}>
+                    <div className="iv-kh"><Keyboard size={12}/><span>Shortcuts</span><button onClick={()=>setKb(false)} className="iv-kc"><X size={12}/></button></div>
+                    <div className="iv-kg">{SHORTCUTS.map(s=><div key={s.k} className="iv-kr"><span className="iv-kk">{s.k}</span><span className="iv-kd">{s.d}</span></div>)}</div>
+                  </div>
+                </motion.div>}
+              </AnimatePresence>
             </div>
-          )}
 
-          {/* ── CANVAS (hidden, for color picker) ── */}
-          <canvas ref={canvasRef} width={imageSize.w} height={imageSize.h} style={{ display: 'none' }} />
+            {/* THUMBS */}
+            {total>1 && thumbs && <div className="iv-tb-bar">
+              <div className="iv-tb-in">{items.map((v:any,i:number)=>(
+                <button key={i} className={`iv-tm ${i===idx?'iv-tm-on':''}`} onClick={()=>go(i)}>
+                  <img src={getDisplayUrl(v.url,v.id,120)||''} alt="" loading="lazy"/>
+                  <span className="iv-ti">{i+1}</span>
+                </button>
+              ))}</div>
+            </div>}
 
-          <style jsx>{`
-            /* ================================================================
-               GLOBAL VIEWER — Pro-level image viewer
-               ================================================================ */
-            .gv-overlay {
-              position: fixed; inset: 0;
-              background: rgba(0, 0, 0, 0.94);
-              backdrop-filter: blur(32px) saturate(1.5);
-              -webkit-backdrop-filter: blur(32px) saturate(1.5);
-              z-index: 99999;
-              display: flex;
-              flex-direction: column;
-              color: #fff;
-              font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
-              user-select: none;
-              -webkit-user-select: none;
-            }
+            <canvas ref={picRef} style={{display:'none'}} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            /* ── TOP BAR ── */
-            .gv-topbar {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              padding: 0.6rem 1rem;
-              background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
-              flex-shrink: 0;
-              z-index: 20;
-              gap: 1rem;
-            }
-            .gv-topbar-left { display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0; }
-            .gv-title-block { min-width: 0; }
-            .gv-title { margin: 0; font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
-            .gv-counter { font-size: 0.6rem; color: rgba(255,255,255,0.35); font-weight: 600; letter-spacing: 0.04em; }
-            .gv-topbar-center { display: flex; align-items: center; }
-            .gv-topbar-right { display: flex; align-items: center; gap: 0.05rem; flex-shrink: 0; }
+      <style jsx>{`
+        .iv {
+          position: fixed; inset: 0; z-index: 99999;
+          background: rgba(0,0,0,0.94); backdrop-filter: blur(28px);
+          -webkit-backdrop-filter: blur(28px);
+          display: flex; flex-direction: column; color: #fff;
+          user-select: none; -webkit-user-select: none;
+          font-family: var(--font-sans,'Inter',system-ui,sans-serif);
+        }
+        .iv-bar { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.9rem; background: linear-gradient(180deg,rgba(0,0,0,0.6),transparent); flex-shrink: 0; z-index: 20; gap: 0.75rem; }
+        .iv-bl { display: flex; align-items: center; gap: 0.7rem; flex: 1; min-width: 0; }
+        .iv-bt-t h3 { margin: 0; font-size: 0.85rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .iv-bt-c { font-size: 0.58rem; color: rgba(255,255,255,0.3); font-weight: 600; }
+        .iv-bc { display: flex; align-items: center; }
+        .iv-br { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
+        .iv-tg { display: flex; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.03); border-radius: 100px; padding: 0.08rem; gap: 0; }
+        .iv-sep { width: 1px; height: 16px; background: rgba(255,255,255,0.04); margin: 0 0.1rem; flex-shrink: 0; }
+        .iv-tl { font-size: 0.6rem; font-weight: 600; color: rgba(255,255,255,0.35); width: 38px; text-align: center; }
+        .iv-tb { width: 28px; height: 28px; border-radius: 7px; background: transparent; border: none; color: rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; font-size: 0.5rem; font-weight: 700; flex-shrink: 0; }
+        .iv-tb:hover { background: rgba(255,255,255,0.06); color: #fff; }
+        .iv-on { background: rgba(99,102,241,0.15) !important; color: #a5b4fc !important; }
+        .iv-bt-g { width: 32px; height: 32px; border-radius: 9px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.03); color: rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+        .iv-bt-g:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.12); color: #ef4444; }
 
-            .gv-tool-group {
-              display: flex; align-items: center;
-              background: rgba(255,255,255,0.04);
-              border: 1px solid rgba(255,255,255,0.04);
-              border-radius: 100px;
-              padding: 0.1rem;
-              gap: 0.05rem;
-            }
-            .gv-tool-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.06); margin: 0 0.1rem; flex-shrink: 0; }
-            .gv-zoom-label {
-              font-size: 0.65rem; font-weight: 600; color: rgba(255,255,255,0.4);
-              width: 42px; text-align: center; font-variant-numeric: tabular-nums;
-            }
+        .iv-adj { overflow: hidden; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .iv-ai { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 1rem; background: rgba(0,0,0,0.2); backdrop-filter: blur(12px); flex-wrap: wrap; }
+        .iv-af { display: flex; align-items: center; gap: 0.35rem; color: rgba(255,255,255,0.4); font-size: 0.6rem; font-weight: 600; }
+        .iv-af input[type=range] { -webkit-appearance: none; width: 70px; height: 3px; background: rgba(255,255,255,0.08); border-radius: 4px; outline: none; cursor: pointer; }
+        .iv-af input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%; background: #818cf8; border: 1px solid rgba(255,255,255,0.15); cursor: pointer; }
+        .iv-av { width: 28px; text-align: right; font-size: 0.58rem; color: rgba(255,255,255,0.25); }
+        .iv-ar { padding: 0.2rem 0.5rem; border-radius: 5px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.03); color: rgba(255,255,255,0.25); font-size: 0.55rem; font-weight: 700; cursor: pointer; margin-left: auto; }
+        .iv-ar:hover { background: rgba(255,255,255,0.06); color: #fff; }
 
-            .gv-tool-btn {
-              width: 30px; height: 30px;
-              border-radius: 8px;
-              background: transparent; border: none;
-              color: rgba(255,255,255,0.45);
-              display: flex; align-items: center; justify-content: center;
-              cursor: pointer; transition: all 0.15s;
-              font-size: 0.55rem; font-weight: 700;
-              position: relative;
-            }
-            .gv-tool-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
-            .gv-tool-btn-sm { font-size: 0.5rem; }
-            .gv-tool-active { background: rgba(99,102,241,0.15) !important; color: #a5b4fc !important; }
-            .gv-btn-dot { display: none; }
-            .gv-tool-active .gv-btn-dot { display: block; position: absolute; bottom: 2px; right: 2px; width: 4px; height: 4px; border-radius: 50%; background: #818cf8; }
+        .iv-stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; min-height: 0; }
+        .iv-stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 0.75rem; overflow: hidden; position: relative; }
+        .iv-img { max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: none; will-change: transform, filter; }
+        .iv-ld { position: absolute; color: rgba(255,255,255,0.12); }
+        .iv-sp { animation: iv-spin 0.8s linear infinite; }
+        @keyframes iv-spin { to { transform: rotate(360deg); } }
+        .iv-er { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; color: rgba(255,255,255,0.18); }
+        .iv-er p { margin: 0; font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.2); }
+        .iv-el { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.7rem; background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.1); border-radius: 7px; color: #818cf8; font-size: 0.65rem; font-weight: 700; text-decoration: none; }
+        .iv-el:hover { background: rgba(99,102,241,0.12); }
+        .iv-gr { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .iv-pc { position: absolute; z-index: 10; display: flex; align-items: center; gap: 0.3rem; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.04); border-radius: 7px; padding: 0.25rem 0.4rem; pointer-events: auto; left: 1rem; top: 1rem; }
+        .iv-sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+        .iv-hx { font-size: 0.6rem; font-weight: 700; font-family: 'SF Mono','Fira Code',monospace; color: rgba(255,255,255,0.7); }
+        .iv-cpb { width: 18px; height: 18px; border-radius: 3px; background: rgba(255,255,255,0.03); border: none; color: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .iv-cpb:hover { background: rgba(255,255,255,0.06); color: #fff; }
+        .iv-lb { position: absolute; bottom: 0.5rem; right: 0.75rem; font-size: 0.55rem; font-weight: 600; color: rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); padding: 0.1rem 0.4rem; border-radius: 5px; pointer-events: none; }
 
-            .gv-tool-btn-wrapper { display: flex; align-items: center; gap: 0; }
+        .iv-n { position: absolute; top: 50%; transform: translateY(-50%); z-index: 5; width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.03); color: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; opacity: 0; }
+        .iv-stage-wrap:hover .iv-n { opacity: 1; }
+        .iv-n:hover { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.15); color: #fff; transform: translateY(-50%) scale(1.05); }
+        .iv-np { left: 0.6rem; }
+        .iv-nn { right: 0.6rem; }
 
-            .gv-btn-ghost {
-              width: 34px; height: 34px;
-              border-radius: 10px;
-              background: rgba(255,255,255,0.04);
-              border: 1px solid rgba(255,255,255,0.04);
-              color: rgba(255,255,255,0.6);
-              display: flex; align-items: center; justify-content: center;
-              cursor: pointer; transition: all 0.15s;
-              flex-shrink: 0;
-            }
-            .gv-btn-ghost:hover { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.15); color: #ef4444; }
+        .iv-inf { position: absolute; top: 0; right: 0; bottom: 0; width: 280px; background: rgba(8,8,20,0.85); backdrop-filter: blur(32px); border-left: 1px solid rgba(255,255,255,0.02); z-index: 20; overflow: hidden; display: flex; flex-direction: column; }
+        .iv-ii { padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.7rem; }
+        .iv-ii::-webkit-scrollbar { width: 2px; }
+        .iv-ii::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.04); }
+        .iv-is { display: flex; align-items: center; gap: 0.4rem; font-size: 0.52rem; font-weight: 700; color: rgba(255,255,255,0.2); text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 0.35rem; border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .iv-ib { display: flex; flex-direction: column; gap: 0.1rem; }
+        .iv-il { font-size: 0.52rem; font-weight: 600; color: rgba(255,255,255,0.2); text-transform: uppercase; letter-spacing: 0.05em; }
+        .iv-iv { font-size: 0.88rem; font-weight: 700; color: #fff; }
+        .iv-isv { font-size: 0.72rem; color: rgba(255,255,255,0.5); font-weight: 600; }
+        .iv-ir { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+        .iv-it { margin: 0; font-size: 0.65rem; line-height: 1.5; color: rgba(255,255,255,0.35); }
+        .iv-id { height: 1px; background: rgba(255,255,255,0.02); margin: 0; }
+        .iv-ilk { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.62rem; font-weight: 600; color: #818cf8; text-decoration: none; }
+        .iv-ilk:hover { color: #a5b4fc; }
 
-            /* ── ADJUSTMENTS BAR ── */
-            .gv-adjust-bar {
-              overflow: hidden;
-              flex-shrink: 0;
-              z-index: 15;
-              border-bottom: 1px solid rgba(255,255,255,0.03);
-            }
-            .gv-adjust-inner {
-              display: flex; align-items: center; gap: 1rem;
-              padding: 0.5rem 1.5rem;
-              background: rgba(0,0,0,0.3);
-              backdrop-filter: blur(16px);
-              flex-wrap: wrap;
-            }
-            .gv-adjust-item {
-              display: flex; align-items: center; gap: 0.4rem;
-              color: rgba(255,255,255,0.5);
-              font-size: 0.65rem; font-weight: 600;
-            }
-            .gv-adjust-label { min-width: 60px; }
-            .gv-range {
-              -webkit-appearance: none; appearance: none;
-              width: 80px; height: 3px;
-              background: rgba(255,255,255,0.1);
-              border-radius: 4px;
-              outline: none;
-              cursor: pointer;
-            }
-            .gv-range::-webkit-slider-thumb {
-              -webkit-appearance: none;
-              width: 12px; height: 12px;
-              border-radius: 50%;
-              background: #818cf8;
-              border: 2px solid rgba(255,255,255,0.2);
-              cursor: pointer;
-              transition: all 0.15s;
-            }
-            .gv-range::-webkit-slider-thumb:hover { transform: scale(1.2); background: #a5b4fc; }
-            .gv-adjust-val { width: 32px; text-align: right; font-variant-numeric: tabular-nums; color: rgba(255,255,255,0.3); }
-            .gv-adjust-reset {
-              padding: 0.25rem 0.6rem;
-              border-radius: 6px;
-              background: rgba(255,255,255,0.04);
-              border: 1px solid rgba(255,255,255,0.04);
-              color: rgba(255,255,255,0.3);
-              font-size: 0.6rem; font-weight: 700;
-              cursor: pointer; transition: all 0.15s;
-              margin-left: auto;
-            }
-            .gv-adjust-reset:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .iv-kb-bg { position: absolute; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(6px); z-index: 50; display: flex; align-items: center; justify-content: center; }
+        .iv-kb { background: rgba(10,10,24,0.95); border: 1px solid rgba(255,255,255,0.03); border-radius: 14px; max-width: 300px; width: 80%; box-shadow: 0 24px 48px rgba(0,0,0,0.5); overflow: hidden; }
+        .iv-kh { display: flex; align-items: center; gap: 0.4rem; padding: 0.8rem 1rem; font-size: 0.65rem; font-weight: 700; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .iv-kc { margin-left: auto; width: 20px; height: 20px; border-radius: 5px; background: transparent; border: none; color: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .iv-kc:hover { background: rgba(255,255,255,0.04); color: #fff; }
+        .iv-kg { padding: 0.6rem 1rem 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.1rem; }
+        .iv-kr { display: flex; align-items: center; gap: 0.4rem; padding: 0.15rem 0; }
+        .iv-kk { font-size: 0.55rem; font-weight: 700; color: #a5b4fc; background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.08); padding: 0.08rem 0.35rem; border-radius: 3px; min-width: 38px; text-align: center; font-family: 'SF Mono','Fira Code',monospace; }
+        .iv-kd { font-size: 0.62rem; color: rgba(255,255,255,0.45); }
 
-            /* ── STAGE ── */
-            .gv-stage-wrap {
-              flex: 1;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              position: relative;
-              overflow: hidden;
-              min-height: 0;
-            }
-            .gv-stage {
-              width: 100%; height: 100%;
-              display: flex; align-items: center; justify-content: center;
-              padding: 1rem;
-              overflow: hidden;
-              position: relative;
-            }
-            .gv-main-img {
-              max-width: 100%;
-              max-height: 100%;
-              object-fit: contain;
-              pointer-events: none;
-              will-change: transform, filter;
-              border-radius: 1px;
-              transition: filter 0.2s ease;
-            }
+        .iv-tb-bar { flex-shrink: 0; background: linear-gradient(0deg,rgba(0,0,0,0.5),transparent); padding: 0.5rem 0 0.75rem; display: flex; justify-content: center; z-index: 10; }
+        .iv-tb-in { display: flex; gap: 0.35rem; overflow-x: auto; padding: 0 0.75rem; max-width: 100%; scrollbar-width: none; }
+        .iv-tb-in::-webkit-scrollbar { display: none; }
+        .iv-tm { flex-shrink: 0; width: 44px; height: 44px; border-radius: 9px; overflow: hidden; border: 2px solid transparent; padding: 0; cursor: pointer; transition: all 0.15s; opacity: 0.3; position: relative; background: rgba(255,255,255,0.01); }
+        .iv-tm:hover { opacity: 0.5; }
+        .iv-tm-on { opacity: 1 !important; border-color: #818cf8; box-shadow: 0 0 10px rgba(99,102,241,0.15); transform: scale(1.05); }
+        .iv-tm img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; }
+        .iv-ti { position: absolute; bottom: 1px; right: 1px; width: 13px; height: 13px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); border-radius: 2px; font-size: 0.38rem; font-weight: 700; color: rgba(255,255,255,0.4); backdrop-filter: blur(3px); }
 
-            .gv-loader { position: absolute; color: rgba(255,255,255,0.15); }
-            .gv-spin { animation: gv-rotate 0.8s linear infinite; }
-            @keyframes gv-rotate { to { transform: rotate(360deg); } }
-
-            .gv-error-state {
-              display: flex; flex-direction: column; align-items: center; gap: 0.8rem;
-              color: rgba(255,255,255,0.2);
-            }
-            .gv-error-icon { opacity: 0.4; }
-            .gv-error-state p { margin: 0; font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.25); }
-            .gv-error-link {
-              display: inline-flex; align-items: center; gap: 0.35rem;
-              padding: 0.35rem 0.8rem;
-              background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.12);
-              border-radius: 8px; color: #818cf8;
-              font-size: 0.7rem; font-weight: 700; text-decoration: none;
-              transition: all 0.15s;
-            }
-            .gv-error-link:hover { background: rgba(99,102,241,0.15); }
-
-            /* ── Grid Overlay ── */
-            .gv-grid-overlay {
-              position: absolute; inset: 0;
-              width: 100%; height: 100%;
-              pointer-events: none;
-              z-index: 5;
-            }
-
-            /* ── Compare ── */
-            .gv-compare-wrap {
-              position: absolute; inset: 1rem;
-              z-index: 3;
-              overflow: hidden;
-              border-radius: 4px;
-              border: 1px solid rgba(255,255,255,0.06);
-            }
-            .gv-compare-img {
-              width: 100%; height: 100%;
-              object-fit: contain;
-              opacity: 0.5;
-              filter: grayscale(1);
-            }
-            .gv-compare-label {
-              position: absolute; top: 0.5rem; left: 0.5rem;
-              font-size: 0.6rem; font-weight: 700;
-              background: rgba(0,0,0,0.6);
-              padding: 0.15rem 0.45rem;
-              border-radius: 4px;
-              color: rgba(255,255,255,0.4);
-            }
-
-            /* ── Color indicator ── */
-            .gv-color-indicator {
-              position: absolute; z-index: 10;
-              display: flex; align-items: center; gap: 0.3rem;
-              background: rgba(0,0,0,0.75);
-              backdrop-filter: blur(8px);
-              border: 1px solid rgba(255,255,255,0.06);
-              border-radius: 8px;
-              padding: 0.3rem 0.5rem;
-              pointer-events: auto;
-            }
-            .gv-color-swatch {
-              width: 16px; height: 16px;
-              border-radius: 4px;
-              border: 1px solid rgba(255,255,255,0.1);
-              flex-shrink: 0;
-            }
-            .gv-color-hex {
-              font-size: 0.65rem; font-weight: 700;
-              font-family: 'SF Mono', 'Fira Code', monospace;
-              color: rgba(255,255,255,0.8);
-            }
-            .gv-color-copy {
-              width: 20px; height: 20px;
-              border-radius: 4px;
-              background: rgba(255,255,255,0.04);
-              border: none;
-              color: rgba(255,255,255,0.3);
-              display: flex; align-items: center; justify-content: center;
-              cursor: pointer; transition: all 0.15s;
-            }
-            .gv-color-copy:hover { background: rgba(255,255,255,0.1); color: #fff; }
-
-            /* ── Image label ── */
-            .gv-img-label {
-              position: absolute; bottom: 0.75rem; right: 1rem;
-              display: flex; align-items: center; gap: 0.4rem;
-              font-size: 0.6rem; font-weight: 600;
-              color: rgba(255,255,255,0.15);
-              background: rgba(0,0,0,0.3);
-              padding: 0.15rem 0.5rem;
-              border-radius: 6px;
-              pointer-events: none;
-            }
-            .gv-img-dims { color: rgba(255,255,255,0.1); }
-
-            /* ── Navigation ── */
-            .gv-nav {
-              position: absolute; top: 50%; transform: translateY(-50%);
-              z-index: 5;
-              width: 42px; height: 42px;
-              border-radius: 50%;
-              background: rgba(0,0,0,0.35);
-              backdrop-filter: blur(12px);
-              border: 1px solid rgba(255,255,255,0.04);
-              color: rgba(255,255,255,0.3);
-              display: flex; align-items: center; justify-content: center;
-              cursor: pointer; transition: all 0.2s;
-              opacity: 0;
-            }
-            .gv-stage-wrap:hover .gv-nav { opacity: 1; }
-            .gv-nav:hover { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.2); color: #fff; transform: translateY(-50%) scale(1.06); }
-            .gv-nav-prev { left: 0.75rem; }
-            .gv-nav-next { right: 0.75rem; }
-
-            /* ── INFO PANEL ── */
-            .gv-info-panel {
-              position: absolute; top: 0; right: 0; bottom: 0;
-              width: 320px;
-              background: rgba(8, 8, 20, 0.88);
-              backdrop-filter: blur(40px) saturate(1.2);
-              -webkit-backdrop-filter: blur(40px) saturate(1.2);
-              border-left: 1px solid rgba(255,255,255,0.03);
-              z-index: 20;
-              overflow: hidden;
-              display: flex; flex-direction: column;
-            }
-            .gv-info-inner {
-              padding: 1.25rem;
-              overflow-y: auto;
-              display: flex; flex-direction: column; gap: 0.85rem;
-            }
-            .gv-info-inner::-webkit-scrollbar { width: 2px; }
-            .gv-info-inner::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 4px; }
-            .gv-info-section-title {
-              display: flex; align-items: center; gap: 0.45rem;
-              font-size: 0.55rem; font-weight: 700; color: rgba(255,255,255,0.25);
-              text-transform: uppercase; letter-spacing: 0.1em;
-              padding-bottom: 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.03);
-            }
-            .gv-info-block { display: flex; flex-direction: column; gap: 0.15rem; }
-            .gv-info-label { font-size: 0.55rem; font-weight: 600; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.06em; }
-            .gv-info-value { font-size: 0.95rem; font-weight: 700; color: #fff; }
-            .gv-info-value-sm { font-size: 0.78rem; color: rgba(255,255,255,0.55); font-weight: 600; }
-            .gv-info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
-            .gv-info-text { margin: 0; font-size: 0.7rem; line-height: 1.6; color: rgba(255,255,255,0.4); }
-            .gv-info-divider { height: 1px; background: rgba(255,255,255,0.03); margin: 0.1rem 0; }
-            .gv-info-link {
-              display: inline-flex; align-items: center; gap: 0.35rem;
-              font-size: 0.68rem; font-weight: 600; color: #818cf8;
-              text-decoration: none; transition: all 0.15s;
-            }
-            .gv-info-link:hover { color: #a5b4fc; }
-
-            /* ── LENS ── */
-            .gv-lens {
-              position: absolute; z-index: 30;
-              width: 120px; height: 120px;
-              border-radius: 50%;
-              overflow: hidden;
-              border: 2px solid rgba(255,255,255,0.1);
-              box-shadow: 0 8px 32px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.04);
-              pointer-events: none;
-              background: rgba(0,0,0,0.8);
-            }
-            .gv-lens-img {
-              width: 100%; height: 100%;
-              background-repeat: no-repeat;
-              image-rendering: auto;
-            }
-            .gv-lens-crosshair {
-              position: absolute; top: 50%; left: 50%;
-              transform: translate(-50%, -50%);
-              width: 4px; height: 4px;
-              border: 1px solid rgba(255,255,255,0.3);
-              border-radius: 50%;
-            }
-
-            /* ── SHARE MODAL ── */
-            .gv-share-modal {
-              position: absolute; bottom: 5rem; right: 1rem;
-              z-index: 25;
-              background: rgba(12, 12, 28, 0.95);
-              backdrop-filter: blur(24px);
-              border: 1px solid rgba(255,255,255,0.04);
-              border-radius: 14px;
-              padding: 0.75rem;
-              min-width: 180px;
-              box-shadow: 0 16px 48px rgba(0,0,0,0.5);
-            }
-            .gv-share-header {
-              display: flex; align-items: center; gap: 0.4rem;
-              font-size: 0.6rem; font-weight: 700;
-              color: rgba(255,255,255,0.3);
-              padding-bottom: 0.5rem;
-              margin-bottom: 0.4rem;
-              border-bottom: 1px solid rgba(255,255,255,0.03);
-              text-transform: uppercase; letter-spacing: 0.06em;
-            }
-            .gv-share-close {
-              margin-left: auto;
-              width: 18px; height: 18px;
-              border-radius: 4px;
-              background: transparent; border: none;
-              color: rgba(255,255,255,0.2);
-              display: flex; align-items: center; justify-content: center;
-              cursor: pointer;
-            }
-            .gv-share-close:hover { background: rgba(255,255,255,0.04); color: #fff; }
-            .gv-share-options { display: flex; flex-direction: column; gap: 0.25rem; }
-            .gv-share-btn {
-              display: flex; align-items: center; gap: 0.5rem;
-              padding: 0.4rem 0.6rem;
-              border-radius: 8px;
-              background: transparent; border: none;
-              color: rgba(255,255,255,0.5);
-              font-size: 0.72rem; font-weight: 600;
-              cursor: pointer; transition: all 0.15s;
-              width: 100%; text-align: left;
-            }
-            .gv-share-btn:hover { background: rgba(255,255,255,0.04); color: #fff; }
-            .gv-share-size { margin-left: auto; font-size: 0.6rem; color: rgba(255,255,255,0.2); }
-
-            /* ── KEYBOARD MODAL ── */
-            .gv-modal-overlay {
-              position: absolute; inset: 0;
-              background: rgba(0,0,0,0.5);
-              backdrop-filter: blur(8px);
-              z-index: 50;
-              display: flex; align-items: center; justify-content: center;
-            }
-            .gv-modal {
-              background: rgba(12, 12, 28, 0.96);
-              border: 1px solid rgba(255,255,255,0.04);
-              border-radius: 16px;
-              padding: 0.1rem;
-              max-width: 360px; width: 85%;
-              box-shadow: 0 32px 64px rgba(0,0,0,0.6);
-              overflow: hidden;
-            }
-            .gv-modal-head {
-              display: flex; align-items: center; gap: 0.5rem;
-              padding: 1rem 1.25rem;
-              font-size: 0.7rem; font-weight: 700;
-              color: rgba(255,255,255,0.4);
-              text-transform: uppercase; letter-spacing: 0.08em;
-              border-bottom: 1px solid rgba(255,255,255,0.03);
-            }
-            .gv-modal-close {
-              margin-left: auto;
-              width: 22px; height: 22px;
-              border-radius: 6px;
-              background: transparent; border: none;
-              color: rgba(255,255,255,0.2);
-              display: flex; align-items: center; justify-content: center;
-              cursor: pointer;
-            }
-            .gv-modal-close:hover { background: rgba(255,255,255,0.04); color: #fff; }
-            .gv-modal-grid {
-              padding: 0.75rem 1.25rem 1.25rem;
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 0.15rem;
-            }
-            .gv-modal-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; }
-            .gv-modal-key {
-              font-size: 0.6rem; font-weight: 700; color: #a5b4fc;
-              background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.1);
-              padding: 0.1rem 0.4rem; border-radius: 4px;
-              min-width: 44px; text-align: center;
-              font-family: 'SF Mono', 'Fira Code', monospace;
-              letter-spacing: 0.02em;
-            }
-            .gv-modal-desc { font-size: 0.68rem; color: rgba(255,255,255,0.5); }
-
-            /* ── MINIMAP ── */
-            .gv-minimap {
-              position: absolute; bottom: 5.5rem; left: 1rem;
-              z-index: 15;
-              background: rgba(8, 8, 20, 0.9);
-              backdrop-filter: blur(16px);
-              border: 1px solid rgba(255,255,255,0.03);
-              border-radius: 10px;
-              overflow: hidden;
-              width: 120px;
-              box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-            }
-            .gv-minimap-header {
-              display: flex; align-items: center; gap: 0.3rem;
-              padding: 0.3rem 0.5rem;
-              font-size: 0.55rem; font-weight: 700;
-              color: rgba(255,255,255,0.2);
-              border-bottom: 1px solid rgba(255,255,255,0.03);
-            }
-            .gv-minimap-close {
-              margin-left: auto;
-              width: 16px; height: 16px;
-              border-radius: 3px;
-              background: transparent; border: none;
-              color: rgba(255,255,255,0.15);
-              display: flex; align-items: center; justify-content: center;
-              cursor: pointer; padding: 0;
-            }
-            .gv-minimap-close:hover { background: rgba(255,255,255,0.04); color: #fff; }
-            .gv-minimap-img-wrap { padding: 0.35rem; }
-            .gv-minimap-img { width: 100%; display: block; border-radius: 4px; opacity: 0.7; }
-
-            /* ── THUMBNAIL STRIP ── */
-            .gv-thumbs-bar {
-              flex-shrink: 0;
-              background: linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 100%);
-              padding: 0.6rem 0 0.85rem;
-              display: flex; justify-content: center;
-              z-index: 10;
-            }
-            .gv-thumbs-inner {
-              display: flex; gap: 0.4rem;
-              overflow-x: auto;
-              padding: 0 1rem;
-              max-width: 100%;
-              scrollbar-width: none;
-              -ms-overflow-style: none;
-            }
-            .gv-thumbs-inner::-webkit-scrollbar { display: none; }
-
-            .gv-thumb {
-              flex-shrink: 0;
-              width: 48px; height: 48px;
-              border-radius: 10px;
-              overflow: hidden;
-              border: 2px solid transparent;
-              padding: 0;
-              cursor: pointer;
-              transition: all 0.2s;
-              opacity: 0.35;
-              position: relative;
-              background: rgba(255,255,255,0.02);
-            }
-            .gv-thumb:hover { opacity: 0.6; }
-            .gv-thumb-active {
-              opacity: 1 !important;
-              border-color: #818cf8;
-              box-shadow: 0 0 12px rgba(99,102,241,0.2);
-              transform: scale(1.06);
-            }
-            .gv-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-            .gv-thumb-idx {
-              position: absolute; bottom: 1px; right: 1px;
-              width: 14px; height: 14px;
-              display: flex; align-items: center; justify-content: center;
-              background: rgba(0,0,0,0.5);
-              border-radius: 3px;
-              font-size: 0.4rem; font-weight: 700; color: rgba(255,255,255,0.5);
-              backdrop-filter: blur(4px);
-            }
-
-            /* ── RESPONSIVE ── */
-            @media (max-width: 768px) {
-              .gv-topbar { padding: 0.4rem 0.6rem; flex-wrap: wrap; gap: 0.4rem; }
-              .gv-topbar-center { order: 3; width: 100%; justify-content: center; }
-              .gv-topbar-right { gap: 0; flex-wrap: wrap; justify-content: flex-end; }
-              .gv-tool-btn { width: 28px; height: 28px; }
-              .gv-btn-ghost { width: 30px; height: 30px; }
-              .gv-stage { padding: 0.25rem; }
-              .gv-nav { width: 34px; height: 34px; opacity: 1; }
-              .gv-nav-prev { left: 0.25rem; }
-              .gv-nav-next { right: 0.25rem; }
-              .gv-info-panel { width: 100%; }
-              .gv-thumb { width: 40px; height: 40px; }
-              .gv-zoom-label { width: 36px; font-size: 0.6rem; }
-              .gv-modal { padding: 0; }
-              .gv-modal-grid { grid-template-columns: 1fr; }
-              .gv-adjust-inner { padding: 0.4rem 0.75rem; gap: 0.5rem; }
-              .gv-range { width: 60px; }
-              .gv-lens { width: 80px; height: 80px; }
-              .gv-minimap { width: 90px; }
-              .gv-share-modal { right: 0.5rem; bottom: 4.5rem; }
-            }
-          `}</style>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        @media (max-width: 768px) {
+          .iv-bar { padding: 0.35rem 0.5rem; flex-wrap: wrap; gap: 0.3rem; }
+          .iv-bc { order: 3; width: 100%; justify-content: center; }
+          .iv-br { gap: 0; flex-wrap: wrap; justify-content: flex-end; }
+          .iv-tb { width: 26px; height: 26px; }
+          .iv-bt-g { width: 28px; height: 28px; }
+          .iv-stage { padding: 0.25rem; }
+          .iv-n { width: 32px; height: 32px; opacity: 1; }
+          .iv-np { left: 0.2rem; }
+          .iv-nn { right: 0.2rem; }
+          .iv-inf { width: 100%; }
+          .iv-tm { width: 36px; height: 36px; }
+          .iv-af input[type=range] { width: 50px; }
+          .iv-kg { grid-template-columns: 1fr; }
+        }
+      `}</style>
+    </>
   );
 }
+
