@@ -452,9 +452,19 @@ export default function CategoriesPage() {
           @keyframes spin { to { transform: rotate(360deg); } }
 
           @media (max-width: 768px) {
-            .ca-root { padding: 1rem; }
+            .ca-root { padding: 1rem; padding-top: 90px; }
+            .ca-header { flex-direction: column; gap: 1rem; }
+            .ca-title { font-size: 1.3rem; }
+            .ca-card { padding: 1rem; }
+            .ca-form { flex-direction: column; }
+            .ca-input { width: 100%; }
+            .ca-btn { width: 100%; }
             .ca-input-row { flex-direction: column; }
             .ca-list { grid-template-columns: 1fr; }
+          }
+          @media (max-width: 480px) {
+            .ca-root { padding: 0.7rem; padding-top: 85px; }
+            .ca-card { padding: 0.7rem; }
           }
         `}</style>
       </DashboardLayout>

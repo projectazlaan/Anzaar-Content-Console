@@ -1123,13 +1123,21 @@ export default function SettingsPage() {
             .st-tab span:not(.st-admin-badge) { font-size: 0.7rem; }
           }
           @media (max-width: 768px) {
-            .st-root { padding: 1rem; }
-            .st-header { flex-direction: column; gap: 1rem; }
-            .st-setting { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-            .st-input { min-width: 100%; }
+            .st-root { padding: 1rem; padding-top: 90px; }
+            .st-header { flex-direction: column; gap: 1rem; align-items: flex-start; }
+            .st-title { font-size: 1.3rem; }
+            .st-setting { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+            .st-setting-info label { font-size: 0.75rem; }
+            .st-input { min-width: 100%; font-size: 0.85rem; }
             .st-section-header { flex-direction: column; gap: 0.6rem; }
+            .st-cat-form h3, .st-cat-list-section h3 { font-size: 0.95rem; }
+            .st-btn-primary { width: 100%; justify-content: center; }
             .st-table { font-size: 0.7rem; }
             .st-table th, .st-table td { padding: 0.5rem 0.6rem; }
+          }
+          @media (max-width: 480px) {
+            .st-root { padding: 0.7rem; padding-top: 85px; }
+            .st-card { padding: 1rem; }
           }
         `}</style>
       </DashboardLayout>

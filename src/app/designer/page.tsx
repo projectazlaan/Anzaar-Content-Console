@@ -1892,18 +1892,44 @@ export default function DesignerPage() {
         .dh-popup-close-btn:hover { color: var(--text-main); background: var(--bg-hover); }
 
         @media (max-width: 768px) {
-          .dh-root { padding: 1rem; }
+          .dh-root { padding: 1rem; padding-top: 90px; }
           .dh-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
-          .dh-tabs { max-width: 100%; }
-          .dh-kpi-strip { grid-template-columns: 1fr; }
+          .dh-header-left h1 { font-size: 1.3rem; }
+          .dh-tabs { gap: 0.3rem; max-width: 100%; }
+          .dh-tabs button { font-size: 0.7rem; padding: 0.4rem 0.7rem; }
+          .dh-kpi-strip { grid-template-columns: repeat(2,1fr); gap: 0.5rem; }
+          .dh-kpi-card { padding: 0.7rem; }
+          .dh-kpi-value { font-size: 1.2rem; }
+          .dh-kpi-label { font-size: 0.6rem; }
           .dh-panel-upload { grid-template-columns: 1fr; min-height: auto; }
-          .dh-upload-sidebar { border-right: none; border-bottom: 1px solid var(--border); }
-          .dh-row-main { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
+          .dh-upload-sidebar { border-right: none; border-bottom: 1px solid var(--border); padding: 1rem; }
+          .dh-controls-bar { flex-wrap: wrap; gap: 0.5rem; }
+          .dh-search-box { width: 100%; }
+          .dh-product-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.8rem; }
+          .dh-row-thumb { width: 60px; height: 60px; }
+          .dh-row-main { flex-wrap: wrap; gap: 0.5rem; }
           .dh-row-title { min-width: auto; }
+          .dh-product-name { font-size: 0.8rem; }
           .dh-requests-grid { grid-template-columns: 1fr; }
-          .dh-popup { max-height: 95vh; border-radius: var(--radius-lg); margin: 0.5rem; }
-          .dh-controls-bar { flex-direction: column; align-items: stretch; }
+          .dh-popup { width: 95%; max-height: 95vh; border-radius: var(--radius-lg); margin: 0.5rem; }
+          .dh-popup-content { padding: 1rem; }
+          .dh-popup-preview-grid { grid-template-columns: repeat(auto-fill,minmax(80px,1fr)); }
+          .dh-popup-header h2 { font-size: 1.1rem; }
+          .dh-detail-section { padding: 1rem; }
           .dh-filter-group { justify-content: space-between; }
+        }
+
+        @media (max-width: 480px) {
+          .dh-root { padding: 0.7rem; padding-top: 85px; }
+          .dh-kpi-strip { grid-template-columns: 1fr; }
+          .dh-panel-upload { gap: 0.5rem; }
+          .dh-requests-grid { gap: 0.5rem; }
+          .dh-request-card { padding: 0.8rem; }
+          .dh-popup-stats { grid-template-columns: 1fr 1fr; }
+          .dh-popup-footer { flex-direction: column; gap: 0.5rem; }
+          .dh-popup-viewer-btn,
+          .dh-popup-close-btn { width: 100%; justify-content: center; }
+          .dh-filter-select { font-size: 0.7rem; padding: 0.3rem 0.5rem; }
         }
       `}</style>
     </RoleGuard>

@@ -328,7 +328,32 @@ export default function MotherDrivePage() {
           .md-qli img { max-width: 70vw; max-height: 65vh; object-fit: contain; }
           @media (max-width: 1100px) { .md-pv { display: none; } }
           @media (max-width: 1024px) { .md { margin: -2.5rem; } }
-          @media (max-width: 768px) { .md { margin: -1.5rem; } .md-catp { display: none; } .md-s { width: 120px; } .md-lc-d { display: none; } .md-cd2 { display: none; } }
+          @media (max-width: 768px) {
+            .md { margin: -1.5rem; }
+            .md-catp { display: none; }
+            .md-pv { display: none; }
+            .md-s { width: 120px; }
+            .md-lc-d { display: none; }
+            .md-cd2 { display: none; }
+            .md-h { flex-wrap: wrap; padding: 0.5rem 0.75rem; gap: 0.5rem; }
+            .md-tb { height: 32px; }
+            .md-l { font-size: 0.7rem; }
+            .md-icv { gap: 0.5rem; padding: 0.5rem; }
+            .md-ic { width: 70px; }
+          }
+          @media (max-width: 480px) {
+            .md { margin: -1rem; }
+            .md-h { padding: 0.3rem 0.5rem; }
+            .md-tb { height: 28px; gap: 0.15rem; }
+            .md-tb span { display: none; }
+            .md-s { width: 80px; }
+            .md-ic { width: 56px; }
+            .md-it { height: 56px; }
+            .md-cn { font-size: 0.6rem; min-width: 120px; }
+            .md-st { font-size: 0.55rem; width: 60px; }
+            .md-lh { padding: 0.3rem 0.5rem; }
+            .md-lc { padding: 0.25rem 0.5rem; }
+          }
         `}</style>
       </DashboardLayout>
     </RoleGuard>

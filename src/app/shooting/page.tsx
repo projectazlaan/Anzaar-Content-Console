@@ -1203,7 +1203,7 @@ export default function ShootingPage() {
             .sx-studio { position: static; max-height: none; }
           }
           @media (max-width: 768px) {
-            .sx-root { padding: 1rem; }
+            .sx-root { padding: 1rem; padding-top:90px; }
             .sx-header { flex-direction: column; align-items: flex-start; gap: 0.8rem; }
             .sx-header-stats { width: 100%; justify-content: space-between; }
             .sx-hstat { flex: 1; justify-content: center; }
@@ -1213,6 +1213,19 @@ export default function ShootingPage() {
             .sx-queue-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
             .sx-queue-list { padding: 0.5rem 0.75rem; }
             .sx-panel { padding: 1rem; }
+            .sx-header h1 { font-size:1.3rem; }
+            .sx-tabs button { font-size:0.7rem; padding:0.35rem 0.7rem; }
+          }
+          @media (max-width: 480px) {
+            .sx-root { padding:0.7rem; padding-top:85px; }
+            .sx-header-title h1 { font-size:1.1rem; }
+            .sx-tabs button { font-size:0.6rem; padding:0.25rem 0.5rem; }
+            .sx-queue-header-left h2 { font-size:1rem; }
+            .sx-queue-item { gap:0.5rem; padding:0.6rem; }
+            .sx-ui-thumb { width:44px; height:44px; }
+            .sx-panel { padding:0.7rem; }
+            .sx-form-actions { flex-direction:column; gap:0.5rem; }
+            .sx-form-actions button { width:100%; justify-content:center; }
           }
         `}</style>
       </DashboardLayout>

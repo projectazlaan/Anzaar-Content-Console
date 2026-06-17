@@ -1282,7 +1282,22 @@ export default function DirectorPage() {
             .dc-kpi-strip { grid-template-columns: repeat(3, 1fr); }
           }
           @media (max-width: 768px) {
-            .dc-kpi-strip { grid-template-columns: repeat(2, 1fr); }
+            .dc-kpi-strip { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+            .dc-kpi-card { padding: 0.7rem; }
+            .dc-kpi-value { font-size: 1.1rem; }
+            .dc-kpi-label { font-size: 0.55rem; }
+            .dc-folder-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.8rem; }
+            .dc-folder-item { padding: 0.8rem; }
+            .dc-folder-name { font-size: 0.75rem; }
+            .dc-photos-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); max-height: none; }
+            .dc-photo-item { height: 100px; }
+            .dc-product-row { gap: 0.6rem; padding: 0.7rem; }
+            .dc-row-thumb { width: 44px; height: 44px; }
+            .dc-product-name { font-size: 0.8rem; }
+            .dc-search-box { width: 100%; }
+            .dc-status-badge { font-size: 0.55rem; padding: 0.15rem 0.4rem; }
+            .dc-command-panel { position: static; max-height: none; overflow: visible; margin-top: 1rem; }
+            .dc-select-all { padding: 0.4rem 0.7rem; font-size: 0.7rem; }
           }
           .dc-kpi {
             position: relative;
@@ -2388,6 +2403,23 @@ export default function DirectorPage() {
           /* Spinner */
           .dc-spin { animation: spin 0.8s linear infinite; }
           @keyframes spin { to { transform: rotate(360deg); } }
+
+          @media (max-width: 480px) {
+            .dc-root { padding: 0.7rem; padding-top: 85px; }
+            .dc-kpi-strip { grid-template-columns: 1fr; }
+            .dc-kpi-card { padding: 0.6rem; }
+            .dc-folder-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.5rem; }
+            .dc-folder-item { padding: 0.6rem; }
+            .dc-photos-grid { grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); }
+            .dc-photo-item { height: 75px; border-radius: 6px; }
+            .dc-photo-check { width: 20px; height: 20px; top: 3px; right: 3px; }
+            .dc-product-list { gap: 0.3rem; }
+            .dc-product-row { padding: 0.5rem; gap: 0.4rem; }
+            .dc-row-thumb { width: 36px; height: 36px; }
+            .dc-header { gap: 0.75rem; }
+            .dc-tabs { gap: 0.2rem; }
+            .dc-tabs button { font-size: 0.65rem; padding: 0.3rem 0.5rem; }
+          }
         `}</style>
       </DashboardLayout>
     </RoleGuard>

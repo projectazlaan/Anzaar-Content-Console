@@ -78,17 +78,17 @@ export default function Sidebar() {
 
   return (
     <>
+      {/* Mobile Toggle — OUTSIDE sidebar so it's always visible */}
+      <button className="mobile-menu-btn" onClick={() => setIsMobileOpen(!isMobileOpen)}>
+        {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
+
+      {/* Overlay for mobile — OUTSIDE sidebar */}
+      {isMobileOpen && (
+        <div className="mobile-overlay" onClick={() => setIsMobileOpen(false)} />
+      )}
+
       <div className={`sidebar-wrapper ${isMobileOpen ? 'mobile-open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
-        {/* Mobile Toggle */}
-        <button className="mobile-menu-btn" onClick={() => setIsMobileOpen(!isMobileOpen)}>
-          {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-
-        {/* Overlay for mobile */}
-        {isMobileOpen && (
-          <div className="mobile-overlay" onClick={() => setIsMobileOpen(false)} />
-        )}
-
         <aside className="sidebar-premium">
           {/* Top Section */}
           <div className="sidebar-top">
@@ -213,6 +213,25 @@ export default function Sidebar() {
             {isCollapsed ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
           </span>
         </button>
+      </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="mobile-bottom-nav">
+        <div className="mobile-bottom-nav-inner">
+          {filteredItems.map((item) => {
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link key={item.id} href={item.href} className={`mobile-bottom-nav-item ${isActive ? 'active' : ''}`}>
+                <item.icon size={20} className="mobile-bottom-nav-icon" />
+                <span className="mobile-bottom-nav-label">{item.name.length > 8 ? item.name.slice(0,7)+'..' : item.name}</span>
+              </Link>
+            );
+          })}
+          <Link href="/settings" className={`mobile-bottom-nav-item ${pathname === '/settings' ? 'active' : ''}`}>
+            <Settings size={20} className="mobile-bottom-nav-icon" />
+            <span className="mobile-bottom-nav-label">Settings</span>
+          </Link>
+        </div>
       </div>
 
       <style jsx global>{`
@@ -726,31 +745,37 @@ export default function Sidebar() {
 
         .mobile-menu-btn {
           position: fixed;
-          top: 20px;
-          left: 20px;
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          background: rgba(15, 22, 41, 0.95);
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          top: 16px;
+          left: 16px;
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #6366f1, #a855f7);
+          border: none;
           color: white;
           display: none;
           align-items: center;
           justify-content: center;
           z-index: 1100;
           backdrop-filter: blur(12px);
-          transition: all 0.3s ease;
+          box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          cursor: pointer;
         }
 
         [data-theme="light"] .mobile-menu-btn {
-          background: rgba(255, 255, 255, 0.95);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          color: #0f172a;
+          background: linear-gradient(135deg, #6366f1, #a855f7);
+          color: white;
+          box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
         }
 
         .mobile-menu-btn:hover {
-          background: rgba(15, 22, 41, 1);
-          transform: scale(1.05);
+          transform: scale(1.08);
+          box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5);
+        }
+
+        .mobile-menu-btn:active {
+          transform: scale(0.95);
         }
 
         .mobile-overlay {
@@ -776,7 +801,111 @@ export default function Sidebar() {
 
           .sidebar-premium {
             width: 300px !important;
+            box-shadow: 8px 0 32px rgba(0, 0, 0, 0.5);
           }
+
+          .collapse-btn {
+            display: none;
+          }
+
+          .mobile-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 999;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease;
+          }
+        }
+
+        /* ── Mobile Bottom Nav ── */
+        .mobile-bottom-nav {
+          display: none;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 1050;
+          background: rgba(10, 14, 26, 0.95);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          padding: 0.4rem 0;
+          padding-bottom: max(0.4rem, env(safe-area-inset-bottom));
+        }
+
+        [data-theme="light"] .mobile-bottom-nav {
+          background: rgba(255, 255, 255, 0.95);
+          border-top: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .mobile-bottom-nav-inner {
+          display: flex;
+          justify-content: space-around;
+          align-items: center;
+          max-width: 100%;
+        }
+
+        .mobile-bottom-nav-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          padding: 0.3rem 0.5rem;
+          border-radius: 10px;
+          text-decoration: none;
+          color: rgba(255, 255, 255, 0.4);
+          font-size: 0.55rem;
+          font-weight: 600;
+          transition: all 0.2s ease;
+          cursor: pointer;
+          background: none;
+          border: none;
+          min-width: 56px;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        [data-theme="light"] .mobile-bottom-nav-item {
+          color: rgba(15, 23, 42, 0.4);
+        }
+
+        .mobile-bottom-nav-item.active {
+          color: #818cf8;
+          background: rgba(99, 102, 241, 0.1);
+        }
+
+        [data-theme="light"] .mobile-bottom-nav-item.active {
+          color: #6366f1;
+          background: rgba(99, 102, 241, 0.1);
+        }
+
+        .mobile-bottom-nav-item:active {
+          transform: scale(0.9);
+        }
+
+        .mobile-bottom-nav-icon {
+          width: 22px;
+          height: 22px;
+        }
+
+        .mobile-bottom-nav-label {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 56px;
+          text-align: center;
+        }
+
+        @media (max-width: 768px) {
+          .mobile-bottom-nav {
+            display: block;
+          }
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
       `}</style>
     </>

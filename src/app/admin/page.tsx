@@ -463,16 +463,22 @@ export default function AdminPage() {
           .ad-table th, .ad-table td { padding: 1rem; }
         }
         @media (max-width: 768px) {
-          .ad-root { padding: 1rem; }
+          .ad-root { padding: 1rem; padding-top: 90px; }
           .ad-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+          .ad-title { font-size: 1.3rem; }
           .ad-stats { width: 100%; }
           .ad-stat-pill { width: 100%; justify-content: center; }
           .ad-table-card { overflow-x: auto; }
-          .ad-table { min-width: 800px; }
+          .ad-table { min-width: 800px; font-size: 0.75rem; }
+          .ad-table th, .ad-table td { padding: 0.4rem; }
           .ad-avatar { width: 36px; height: 36px; font-size: 0.85rem; }
           .ad-user-info strong { font-size: 0.82rem; }
           .ad-user-info span { font-size: 0.72rem; }
           .ad-select { font-size: 0.78rem; padding: 0.4rem 0.7rem; }
+        }
+        @media (max-width: 480px) {
+          .ad-root { padding: 0.7rem; padding-top: 85px; }
+          .ad-table { font-size: 0.65rem; }
         }
       `}</style>
     </DashboardLayout>

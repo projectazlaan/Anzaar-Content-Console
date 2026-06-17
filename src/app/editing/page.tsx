@@ -895,6 +895,35 @@ export default function EditingPage() {
         /* Spinner */
         .eh-spin { animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+          .eh-root { padding:1rem; padding-top:90px; }
+          .eh-header h1 { font-size:1.3rem; }
+          .eh-tabs button { font-size:0.7rem; padding:0.35rem 0.7rem; }
+          .eh-kpi-strip { grid-template-columns:repeat(2,1fr); gap:0.5rem; }
+          .eh-kpi { padding:0.7rem; }
+          .eh-kpi-value { font-size:1.1rem; }
+          .eh-kpi-label { font-size:0.55rem; }
+          .eh-search-box { width:100%; }
+          .eh-task-item { gap:0.6rem; padding:0.7rem; }
+          .eh-task-thumb { width:44px; height:44px; }
+          .eh-task-name { font-size:0.8rem; }
+          .eh-editor-panel { position:static; max-height:none; overflow:visible; margin-top:1rem; }
+        }
+        @media (max-width: 480px) {
+          .eh-root { padding:0.7rem; padding-top:85px; }
+          .eh-kpi-strip { grid-template-columns:1fr; }
+          .eh-kpi { padding:0.5rem; }
+          .eh-header { gap:0.75rem; }
+          .eh-tabs button { font-size:0.6rem; padding:0.25rem 0.5rem; }
+          .eh-editor-header { flex-direction:column; }
+          .eh-editor-preview { width:100%; height:auto; aspect-ratio:16/9; }
+          .eh-editor-title { font-size:1rem; }
+          .eh-task-item { padding:0.5rem; gap:0.4rem; }
+          .eh-task-thumb { width:36px; height:36px; }
+          .eh-form-actions { flex-direction:column; gap:0.5rem; }
+          .eh-form-actions button { width:100%; justify-content:center; }
+        }
       `}</style>
     </RoleGuard>
   );
