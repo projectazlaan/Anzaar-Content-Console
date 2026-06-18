@@ -50,6 +50,7 @@ export default function EditingPage() {
   const [loadedThumbs, setLoadedThumbs] = useState<Set<string>>(new Set());
   const [selectedAssets, setSelectedAssets] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [assetPopupOpen, setAssetPopupOpen] = useState(false);
   const { openViewer } = useImageViewer();
 
   const getThumbUrl = (task: any) =>
@@ -130,9 +131,16 @@ export default function EditingPage() {
   };
 
   const closePopup = () => {
-    setSelectedTask(null);
+    setAssetPopupOpen(false);
     setSelectedAssets(new Set());
     setSelectAll(false);
+  };
+
+  const openAssetPopup = () => {
+    if (!selectedTask) return;
+    setSelectedAssets(new Set());
+    setSelectAll(false);
+    setAssetPopupOpen(true);
   };
 
   const handleThumbError = (taskId: string) => {
@@ -314,6 +322,7 @@ export default function EditingPage() {
                         key={task.id}
                         className={`eh-task-item ${isActive ? "eh-task-active" : ""}`}
                         onClick={() => setSelectedTask(task)}
+                        onDoubleClick={() => { setSelectedTask(task); setAssetPopupOpen(true); }}
                       >
                         <div className="eh-task-thumb" onClick={(e) => { e.stopPropagation(); openViewer(task); }}>
                           {(() => {
@@ -443,25 +452,35 @@ export default function EditingPage() {
                     </div>
                   )}
 
-                  {/* Raw asset links */}
+                  {/* Raw asset links + Asset Manager */}
                   {(() => {
                     const assets = buildAssetList(selectedTask);
                     if (assets.length === 0) return null;
                     return (
-                      <div className="eh-section">
-                        <div className="eh-section-head">
-                          <Download size={14} />
-                          <span>QUICK DOWNLOAD</span>
+                      <>
+                        <div className="eh-section">
+                          <div className="eh-section-head">
+                            <Download size={14} />
+                            <span>DOWNLOAD ASSETS ({assets.length})</span>
+                          </div>
+                          <div className="eh-raw-grid">
+                            {assets.slice(0, 4).map(a => a.dl ? (
+                              <a key={a.id} href={a.dl} className="eh-raw-link" target="_blank">
+                                <Download size={12} />
+                                <span>{a.label}</span>
+                              </a>
+                            ) : null)}
+                            {assets.length > 4 && (
+                              <span className="eh-raw-more">+{assets.length - 4} more</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="eh-raw-grid">
-                          {assets.map(a => a.dl ? (
-                            <a key={a.id} href={a.dl} className="eh-raw-link" target="_blank">
-                              <Download size={12} />
-                              <span>{a.label}</span>
-                            </a>
-                          ) : null)}
-                        </div>
-                      </div>
+                        <button className="eh-open-popup-btn" onClick={openAssetPopup}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="2" y1="8" x2="22" y2="8"/><rect x="6" y="12" width="4" height="8"/><rect x="14" y="10" width="4" height="10"/></svg>
+                          <span>Open Asset Manager</span>
+                          <span className="eh-om-badge">{assets.length} files</span>
+                        </button>
+                      </>
                     );
                   })()}
 
@@ -495,7 +514,7 @@ export default function EditingPage() {
         </div>
 
         {/* ── ASSET MANAGER POPUP ── */}
-        {selectedTask && (() => {
+        {assetPopupOpen && selectedTask && (() => {
           const assets = buildAssetList(selectedTask);
           const selCount = selectedAssets.size;
           return (
@@ -1004,6 +1023,12 @@ export default function EditingPage() {
           background: var(--primary-glow);
           border-color: var(--primary);
           color: var(--text-main);
+        }
+        .eh-raw-more { font-size:0.72rem;color:var(--text-dim);font-weight:700;display:flex;align-items:center;padding:0 0.4rem; }
+        .eh-om-badge {
+          display:inline-flex;align-items:center;justify-content:center;
+          min-width:20px;height:18px;padding:0 5px;border-radius:6px;
+          background:rgba(255,255,255,0.15);font-size:0.6rem;font-weight:800;margin-left:0.25rem;
         }
 
         /* Upload Section */
