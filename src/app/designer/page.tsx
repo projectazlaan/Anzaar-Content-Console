@@ -256,12 +256,19 @@ export default function DesignerPage() {
     });
 
     try {
-      const result = await createBulkProducts(formData);
+      // Use API route instead of Server Action to avoid Vercel 10s timeout
+      const response = await fetch("/api/upload-product", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+
       clearInterval(timer);
       clearInterval(progressTimer);
       setIsUploading(false);
       setUploadProgress(100);
       setTimeout(() => setUploadProgress(0), 2000);
+
       if (result && result.success) {
         showToast({ type: "success", title: "Success!", description: "Products uploaded successfully." });
         setProductName("");
