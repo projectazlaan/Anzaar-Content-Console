@@ -48,11 +48,92 @@ export default function EditingPage() {
   const [presets, setPresets] = useState<string[]>([]);
   const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
   const [loadedThumbs, setLoadedThumbs] = useState<Set<string>>(new Set());
+  const [selectedAssets, setSelectedAssets] = useState<Set<number>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
   const { openViewer } = useImageViewer();
 
   const getThumbUrl = (task: any) =>
     getDisplayUrl(task.thumbnailUrl) ||
     getDisplayUrl(task.mainDesignUrl || task.designUrl, task.mainDesignId || task.designId);
+
+  const buildAssetList = (task: any): { id: number; label: string; thumb: string | null; dl: string | null; type: string; fileId: string }[] => {
+    const list: any[] = [];
+    let idx = 0;
+
+    // Design file
+    const dt = getThumbUrl(task);
+    const dd = getDownloadUrl(task.designUrl, task.designId, task.name);
+    if (dd) list.push({ id: idx++, label: 'Design Original', thumb: dt, dl: dd, type: 'design', fileId: task.designId || '' });
+
+    // Variations
+    if (task.variations?.length) {
+      task.variations.forEach((v: any, i: number) => {
+        const vt = getDisplayUrl(v.thumbnailUrl) || getDisplayUrl(v.url, v.id);
+        const vd = getDownloadUrl(v.url, v.id, `${task.name}-variation-${i + 1}`);
+        if (vd) list.push({ id: idx++, label: v.label || `Variation ${i + 1}`, thumb: vt, dl: vd, type: 'variation', fileId: v.id || '' });
+      });
+    }
+
+    // Raw assets
+    if (task.rawUrls?.length) {
+      task.rawUrls.forEach((u: string, i: number) => {
+        const rd = getDownloadUrl(u, task.rawIds?.[i], `${task.name}-raw-${i + 1}`);
+        const rt = getDisplayUrl(u, task.rawIds?.[i]);
+        if (rd) list.push({ id: idx++, label: `Raw Asset ${i + 1}`, thumb: rt, dl: rd, type: 'raw', fileId: task.rawIds?.[i] || '' });
+      });
+    }
+
+    // Edited file
+    const ed = task.editedUrl ? getDownloadUrl(task.editedUrl, null, `${task.name}-edited`) : null;
+    if (ed) list.push({ id: idx++, label: 'Edited Final', thumb: getDisplayUrl(task.editedUrl), dl: ed, type: 'edited', fileId: '' });
+
+    return list;
+  };
+
+  const getAssetsForSelected = () => {
+    if (!selectedTask) return [];
+    return buildAssetList(selectedTask);
+  };
+
+  const toggleAsset = (id: number) => {
+    setSelectedAssets(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setSelectAll(false);
+  };
+
+  const toggleSelectAll = () => {
+    const assets = getAssetsForSelected();
+    if (selectAll) {
+      setSelectedAssets(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedAssets(new Set(assets.map(a => a.id)));
+      setSelectAll(true);
+    }
+  };
+
+  const downloadSingle = (dl: string) => {
+    window.open(dl, '_blank');
+  };
+
+  const downloadSelected = () => {
+    const assets = getAssetsForSelected().filter(a => selectedAssets.has(a.id));
+    assets.forEach(a => { if (a.dl) window.open(a.dl, '_blank'); });
+  };
+
+  const downloadAll = () => {
+    const assets = getAssetsForSelected();
+    assets.forEach(a => { if (a.dl) window.open(a.dl, '_blank'); });
+  };
+
+  const closePopup = () => {
+    setSelectedTask(null);
+    setSelectedAssets(new Set());
+    setSelectAll(false);
+  };
 
   const handleThumbError = (taskId: string) => {
     setFailedThumbs(prev => new Set(prev).add(taskId));
@@ -301,7 +382,6 @@ export default function EditingPage() {
             <div className="eh-editor-panel">
               {selectedTask ? (
                 <div className="eh-editor-form">
-                  {/* Preview Header */}
                   <div className="eh-editor-header">
                     <div className="eh-editor-preview" onClick={() => openViewer(selectedTask)} style={{ cursor: 'pointer' }}>
                       {(() => {
@@ -337,17 +417,6 @@ export default function EditingPage() {
                           {selectedTask.status || "Pending Edit"}
                         </span>
                       </div>
-                      {/* Download Design */}
-                      {(() => {
-                        const ddUrl = getDownloadUrl(selectedTask.designUrl, selectedTask.designId, selectedTask.name);
-                        if (!ddUrl) return null;
-                        return (
-                          <a href={ddUrl} className="eh-dl-btn" download>
-                            <Download size={12} />
-                            <span>Design</span>
-                          </a>
-                        );
-                      })()}
                     </div>
                   </div>
 
@@ -362,127 +431,60 @@ export default function EditingPage() {
                     </div>
                   </div>
 
-                  {/* Presets Chips */}
+                  {/* Presets */}
                   {presets.length > 0 && (
                     <div className="eh-cmd-chips">
                       <span className="eh-chips-title">Presets:</span>
                       {presets.map((text, i) => (
-                        <button
-                          key={i}
-                          className="eh-chip"
-                          onClick={() => applyPreset(text)}
-                        >
-                          <Zap size={10} />
-                          {text}
+                        <button key={i} className="eh-chip" onClick={() => applyPreset(text)}>
+                          <Zap size={10} />{text}
                         </button>
                       ))}
                     </div>
                   )}
 
-                  {/* Raw Assets with Download */}
-                  {selectedTask.rawUrls?.length > 0 && (
-                    <div className="eh-section">
-                      <div className="eh-section-head">
-                        <Download size={14} />
-                        <span>RAW ASSETS ({selectedTask.rawUrls.length})</span>
-                      </div>
-                      <div className="eh-raw-grid">
-                        {selectedTask.rawUrls.map((url: string, i: number) => {
-                          const dlUrl = getDownloadUrl(url, selectedTask.rawIds?.[i], `asset-${i+1}`);
-                          return dlUrl ? (
-                            <a key={i} href={dlUrl} className="eh-raw-link" download>
+                  {/* Raw asset links */}
+                  {(() => {
+                    const assets = buildAssetList(selectedTask);
+                    if (assets.length === 0) return null;
+                    return (
+                      <div className="eh-section">
+                        <div className="eh-section-head">
+                          <Download size={14} />
+                          <span>QUICK DOWNLOAD</span>
+                        </div>
+                        <div className="eh-raw-grid">
+                          {assets.map(a => a.dl ? (
+                            <a key={a.id} href={a.dl} className="eh-raw-link" target="_blank">
                               <Download size={12} />
-                              <span>Download Asset {i + 1}</span>
+                              <span>{a.label}</span>
                             </a>
-                          ) : (
-                            <a key={i} href={url} target="_blank" className="eh-raw-link">
-                              <ExternalLink size={12} />
-                              <span>Asset {i + 1} (Drive)</span>
-                            </a>
-                          );
-                        })}
+                          ) : null)}
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Final Edited File Download */}
-                  {selectedTask.editedUrl && (
-                    <div className="eh-section">
-                      <div className="eh-section-head">
-                        <Check size={14} />
-                        <span>DELIVERED FILE</span>
-                      </div>
-                      <div className="eh-raw-grid">
-                        {(() => {
-                          const dlUrl = getDownloadUrl(selectedTask.editedUrl, null, `${selectedTask.name}-edited`);
-                          return dlUrl ? (
-                            <a href={dlUrl} className="eh-raw-link eh-dl-link" download>
-                              <Download size={14} />
-                              <span>Download Edited File</span>
-                            </a>
-                          ) : (
-                            <a href={selectedTask.editedUrl} target="_blank" className="eh-raw-link">
-                              <ExternalLink size={12} />
-                              <span>View on Drive</span>
-                            </a>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Upload Form */}
                   <form onSubmit={handleFileUpload} className="eh-upload-section">
-                    <div className="eh-section-head">
-                      <Upload size={14} />
-                      <span>DELIVER FINAL EDIT</span>
-                    </div>
+                    <div className="eh-section-head"><Upload size={14} /><span>DELIVER FINAL EDIT</span></div>
                     <div className="eh-file-box">
                       <input type="file" id="finalEdit" required hidden onChange={() => setError("")} />
-                      <label htmlFor="finalEdit" className="eh-file-label">
-                        <Upload size={22} />
-                        <span>Choose file to upload</span>
-                      </label>
+                      <label htmlFor="finalEdit" className="eh-file-label"><Upload size={22} /><span>Choose file to upload</span></label>
                     </div>
-
-                    {error && (
-                      <div className="eh-error">
-                        <AlertCircle size={14} />
-                        <span>{error}</span>
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      className="eh-submit-btn"
-                      disabled={isUploading || uploadSuccess}
-                    >
+                    {error && <div className="eh-error"><AlertCircle size={14} /><span>{error}</span></div>}
+                    <button type="submit" className="eh-submit-btn" disabled={isUploading || uploadSuccess}>
                       <div className="eh-submit-btn-bg" />
-                      {isUploading ? (
-                        <>
-                          <Loader2 className="eh-spin" size={18} />
-                          <span>Uploading to Drive...</span>
-                        </>
-                      ) : uploadSuccess ? (
-                        <>
-                          <Check size={18} />
-                          <span>Delivered Successfully</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload size={18} />
-                          <span>Finalize & Submit</span>
-                        </>
-                      )}
+                      {isUploading ? <><Loader2 className="eh-spin" size={18} /><span>Uploading...</span></>
+                      : uploadSuccess ? <><Check size={18} /><span>Delivered!</span></>
+                      : <><Upload size={18} /><span>Finalize & Submit</span></>}
                     </button>
                   </form>
                 </div>
               ) : (
                 <div className="eh-idle">
                   <div className="eh-idle-ring">
-                    <div className="eh-idle-ring-inner">
-                      <PenTool size={28} />
-                    </div>
+                    <div className="eh-idle-ring-inner"><PenTool size={28} /></div>
                   </div>
                   <h3 className="eh-idle-title">Select a task</h3>
                   <p className="eh-idle-sub">Pick an assignment from the queue to start editing and deliver the final output.</p>
@@ -491,6 +493,112 @@ export default function EditingPage() {
             </div>
           </div>
         </div>
+
+        {/* ── ASSET MANAGER POPUP ── */}
+        {selectedTask && (() => {
+          const assets = buildAssetList(selectedTask);
+          const selCount = selectedAssets.size;
+          return (
+            <div className="eh-popup-overlay" onClick={e => { if (e.target === e.currentTarget) closePopup(); }}>
+              <div className="eh-popup">
+                {/* Popup Header */}
+                <div className="eh-popup-header">
+                  <div className="eh-popup-h-left">
+                    <button className="eh-popup-back" onClick={closePopup}>
+                      <ChevronLeft size={20} />
+                    </button>
+                    <div>
+                      <h2 className="eh-popup-title">{selectedTask.name}</h2>
+                      <div className="eh-popup-meta">
+                        <span className={`eh-status-badge eh-status-${selectedTask.status?.toLowerCase().replace(/\s+/g, '-') || 'pending'}`}>{selectedTask.status || "Pending Edit"}</span>
+                        <span className="eh-popup-count">{assets.length} assets</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="eh-popup-h-right">
+                    <button className={`eh-popup-btn ${selectAll ? 'eh-popup-btn-active' : ''}`} onClick={toggleSelectAll}>
+                      {selectAll ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="4 12 9 17 20 6"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>}
+                      <span>{selectAll ? 'Deselect All' : 'Select All'}</span>
+                    </button>
+                    <button className="eh-popup-dl-btn" onClick={downloadAll} title="Download All">
+                      <Download size={14} /><span>Download All</span>
+                    </button>
+                    {selCount > 0 && (
+                      <button className="eh-popup-dl-btn eh-popup-dl-btn-sel" onClick={downloadSelected}>
+                        <Download size={14} /><span>Download Selected ({selCount})</span>
+                      </button>
+                    )}
+                    <button className="eh-popup-close" onClick={closePopup}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Instructions Bar */}
+                {selectedTask.directions?.edit && (
+                  <div className="eh-popup-instruct">
+                    <FileText size={14} />
+                    <span>{selectedTask.directions.edit.length > 120 ? selectedTask.directions.edit.slice(0, 120) + '...' : selectedTask.directions.edit}</span>
+                  </div>
+                )}
+
+                {/* Asset Grid */}
+                <div className="eh-popup-body">
+                  <div className="eh-popup-grid">
+                    {assets.map((asset) => {
+                      const isSel = selectedAssets.has(asset.id);
+                      return (
+                        <div key={asset.id} className={`eh-popup-card ${isSel ? 'eh-popup-card-sel' : ''}`}>
+                          {/* Thumbnail */}
+                          <div className="eh-popup-card-thumb" onClick={() => downloadSingle(asset.dl || '')}>
+                            {asset.thumb ? (
+                              <img src={asset.thumb} alt={asset.label} />
+                            ) : (
+                              <div className="eh-popup-card-no-thumb">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                              </div>
+                            )}
+                            {/* Type Badge */}
+                            <span className={`eh-popup-type-badge ${asset.type}`}>{asset.type}</span>
+                            {/* Checkbox */}
+                            <div className="eh-popup-check" onClick={e => { e.stopPropagation(); toggleAsset(asset.id); }}>
+                              <div className={`eh-popup-check-box ${isSel ? 'eh-popup-check-on' : ''}`}>
+                                {isSel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="4 12 9 17 20 6"/></svg>}
+                              </div>
+                            </div>
+                            {/* Download icon overlay */}
+                            <div className="eh-popup-card-dl" onClick={(e) => { e.stopPropagation(); downloadSingle(asset.dl || ''); }}>
+                              <Download size={16} />
+                            </div>
+                          </div>
+                          {/* Label */}
+                          <div className="eh-popup-card-label">{asset.label}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bottom Bar */}
+                <div className="eh-popup-footer">
+                  <div className="eh-popup-f-left">
+                    <span className="eh-popup-f-stat">{selCount} of {assets.length} selected</span>
+                  </div>
+                  <div className="eh-popup-f-right">
+                    {selCount > 0 && (
+                      <button className="eh-popup-dl-btn eh-popup-dl-btn-sel" onClick={downloadSelected}>
+                        <Download size={16} /><span>Download Selected ({selCount})</span>
+                      </button>
+                    )}
+                    <button className="eh-popup-dl-btn" onClick={downloadAll}>
+                      <Download size={16} /><span>Download All ({assets.length})</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </DashboardLayout>
 
       <style jsx>{`
@@ -1012,6 +1120,197 @@ export default function EditingPage() {
           color: var(--text-dim);
         }
         .eh-empty p { font-size: 0.88rem; margin: 0; font-weight: 600; }
+
+        /* ── OPEN POPUP BUTTON ── */
+        .eh-open-popup-btn {
+          width:100%;display:flex;align-items:center;justify-content:center;gap:0.5rem;
+          padding:0.7rem;border-radius:var(--radius-md);
+          background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(168,85,247,0.08));
+          border:1px solid rgba(99,102,241,0.2);
+          color:var(--primary);font-size:0.8rem;font-weight:700;
+          cursor:pointer;transition:all var(--transition-fast);
+        }
+        .eh-open-popup-btn:hover { background:var(--primary);color:#fff;border-color:var(--primary);transform:translateY(-2px);box-shadow:0 4px 16px rgba(99,102,241,0.2); }
+
+        /* ── ASSET MANAGER POPUP ── */
+        .eh-popup-overlay {
+          position:fixed;inset:0;z-index:2000;
+          background:rgba(2,6,23,0.85);
+          backdrop-filter:blur(12px);
+          -webkit-backdrop-filter:blur(12px);
+          display:flex;align-items:center;justify-content:center;
+          padding:1.5rem;
+          animation:eh-popup-fade 0.2s ease;
+        }
+        @keyframes eh-popup-fade { from{opacity:0}to{opacity:1} }
+        [data-theme="light"] .eh-popup-overlay { background:rgba(241,245,249,0.85); }
+
+        .eh-popup {
+          width:100%;max-width:1000px;max-height:90vh;
+          background:var(--bg-card);
+          border:1px solid var(--border);
+          border-radius:var(--radius-xl);
+          backdrop-filter:var(--glass);
+          box-shadow:0 24px 80px rgba(0,0,0,0.5),0 0 40px rgba(99,102,241,0.08);
+          display:flex;flex-direction:column;
+          overflow:hidden;
+          animation:eh-popup-slide 0.3s cubic-bezier(0.16,1,0.3,1);
+        }
+        @keyframes eh-popup-slide { from{transform:translateY(20px) scale(0.97);opacity:0}to{transform:translateY(0) scale(1);opacity:1} }
+        [data-theme="light"] .eh-popup { box-shadow:0 24px 80px rgba(0,0,0,0.12); }
+
+        /* Popup Header */
+        .eh-popup-header {
+          display:flex;justify-content:space-between;align-items:center;
+          padding:1rem 1.25rem;
+          border-bottom:1px solid var(--border);
+          flex-shrink:0;gap:0.75rem;
+        }
+        .eh-popup-h-left { display:flex;align-items:center;gap:0.75rem; }
+        .eh-popup-back {
+          width:36px;height:36px;border-radius:10px;
+          background:var(--bg-hover);border:1px solid var(--border);
+          color:var(--text-muted);cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all var(--transition-fast);flex-shrink:0;
+        }
+        .eh-popup-back:hover { background:var(--bg-input);color:var(--text-main);border-color:var(--primary); }
+        .eh-popup-title { font-size:1.15rem;font-weight:800;color:var(--text-main);margin:0; }
+        .eh-popup-meta { display:flex;align-items:center;gap:0.5rem;margin-top:0.2rem; }
+        .eh-popup-count { font-size:0.7rem;color:var(--text-dim);font-weight:600; }
+        .eh-popup-h-right { display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap; }
+        .eh-popup-btn {
+          display:inline-flex;align-items:center;gap:0.35rem;
+          padding:0.4rem 0.75rem;border-radius:8px;
+          background:var(--bg-hover);border:1px solid var(--border);
+          color:var(--text-muted);font-size:0.72rem;font-weight:700;
+          cursor:pointer;transition:all var(--transition-fast);
+          white-space:nowrap;
+        }
+        .eh-popup-btn:hover { background:var(--bg-input);color:var(--text-main);border-color:var(--primary); }
+        .eh-popup-btn-active { background:rgba(99,102,241,0.1);color:var(--primary);border-color:var(--primary); }
+        .eh-popup-dl-btn {
+          display:inline-flex;align-items:center;gap:0.35rem;
+          padding:0.4rem 0.75rem;border-radius:8px;
+          background:linear-gradient(135deg,#6366f1,#a855f7);
+          border:none;color:#fff;font-size:0.72rem;font-weight:700;
+          cursor:pointer;transition:all var(--transition-fast);
+          white-space:nowrap;box-shadow:0 2px 8px rgba(99,102,241,0.25);
+        }
+        .eh-popup-dl-btn:hover { transform:translateY(-1px);box-shadow:0 4px 16px rgba(99,102,241,0.35); }
+        .eh-popup-dl-btn-sel { background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 2px 8px rgba(16,185,129,0.25); }
+        .eh-popup-dl-btn-sel:hover { box-shadow:0 4px 16px rgba(16,185,129,0.35); }
+        .eh-popup-close {
+          width:36px;height:36px;border-radius:10px;
+          background:var(--bg-hover);border:1px solid var(--border);
+          color:var(--text-muted);cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          transition:all var(--transition-fast);margin-left:0.25rem;
+        }
+        .eh-popup-close:hover { background:rgba(239,68,68,0.1);color:#ef4444;border-color:#ef4444; }
+
+        /* Instructions Bar */
+        .eh-popup-instruct {
+          display:flex;align-items:center;gap:0.5rem;
+          padding:0.6rem 1.25rem;
+          background:rgba(6,182,212,0.04);
+          border-bottom:1px solid rgba(6,182,212,0.08);
+          font-size:0.78rem;color:var(--text-muted);font-weight:600;
+          flex-shrink:0;
+        }
+        .eh-popup-instruct svg { color:#06b6d4;flex-shrink:0; }
+
+        /* Asset Grid Body */
+        .eh-popup-body {
+          flex:1;overflow-y:auto;
+          padding:1.25rem;
+          min-height:200px;
+        }
+        .eh-popup-body::-webkit-scrollbar { width:4px; }
+        .eh-popup-body::-webkit-scrollbar-thumb { background:var(--border);border-radius:4px; }
+
+        .eh-popup-grid {
+          display:grid;
+          grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+          gap:0.85rem;
+        }
+
+        /* Asset Card */
+        .eh-popup-card {
+          border-radius:var(--radius-lg);
+          background:var(--bg-input);
+          border:1.5px solid var(--border);
+          overflow:hidden;
+          transition:all var(--transition-base);
+          cursor:default;
+        }
+        .eh-popup-card:hover { background:var(--bg-hover);border-color:var(--primary-glow);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.15); }
+        .eh-popup-card-sel { border-color:var(--primary)!important;background:rgba(99,102,241,0.06)!important;box-shadow:0 0 0 1px rgba(99,102,241,0.3); }
+
+        .eh-popup-card-thumb {
+          position:relative;width:100%;aspect-ratio:1;
+          overflow:hidden;background:var(--bg-deep);
+          cursor:pointer;
+        }
+        .eh-popup-card-thumb img { width:100%;height:100%;object-fit:cover; }
+        .eh-popup-card-no-thumb {
+          width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+          color:var(--text-dim);
+        }
+
+        .eh-popup-type-badge {
+          position:absolute;top:6px;left:6px;
+          padding:2px 6px;border-radius:4px;
+          font-size:0.55rem;font-weight:800;text-transform:uppercase;
+          letter-spacing:0.05em;
+        }
+        .eh-popup-type-badge.design { background:rgba(99,102,241,0.2);color:#818cf8; }
+        .eh-popup-type-badge.variation { background:rgba(16,185,129,0.2);color:#34d399; }
+        .eh-popup-type-badge.raw { background:rgba(245,158,11,0.2);color:#fbbf24; }
+        .eh-popup-type-badge.edited { background:rgba(168,85,247,0.2);color:#c084fc; }
+
+        .eh-popup-check {
+          position:absolute;top:6px;right:6px;
+          width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+          cursor:pointer;z-index:2;
+        }
+        .eh-popup-check-box {
+          width:18px;height:18px;border-radius:4px;
+          border:2px solid rgba(255,255,255,0.5);
+          background:rgba(0,0,0,0.3);
+          display:flex;align-items:center;justify-content:center;
+          transition:all var(--transition-fast);
+        }
+        .eh-popup-card:hover .eh-popup-check-box { border-color:rgba(255,255,255,0.8);background:rgba(0,0,0,0.5); }
+        .eh-popup-check-on { background:var(--primary)!important;border-color:var(--primary)!important; }
+
+        .eh-popup-card-dl {
+          position:absolute;bottom:6px;right:6px;
+          width:30px;height:30px;border-radius:8px;
+          background:rgba(0,0,0,0.5);
+          backdrop-filter:blur(4px);
+          color:#fff;display:flex;align-items:center;justify-content:center;
+          cursor:pointer;transition:all var(--transition-fast);
+          opacity:0;
+        }
+        .eh-popup-card:hover .eh-popup-card-dl { opacity:1; }
+        .eh-popup-card-dl:hover { background:var(--primary);transform:scale(1.1); }
+
+        .eh-popup-card-label {
+          padding:0.5rem 0.6rem;font-size:0.72rem;font-weight:700;
+          color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+        }
+
+        /* Popup Footer */
+        .eh-popup-footer {
+          display:flex;justify-content:space-between;align-items:center;
+          padding:0.85rem 1.25rem;
+          border-top:1px solid var(--border);
+          flex-shrink:0;
+        }
+        .eh-popup-f-left { display:flex;align-items:center;gap:0.5rem; }
+        .eh-popup-f-stat { font-size:0.8rem;font-weight:700;color:var(--text-muted); }
+        .eh-popup-f-right { display:flex;align-items:center;gap:0.5rem; }
 
         /* Spinner */
         .eh-spin { animation: spin 0.8s linear infinite; }
