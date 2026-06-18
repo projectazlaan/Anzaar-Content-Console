@@ -42,6 +42,79 @@ import {
 import { useImageViewer } from "@/components/ImageViewerProvider";
 import { useToast } from "@/components/ToastProvider";
 
+async function uploadFileResumable(
+  productId: string,
+  file: File,
+  onProgress: (percent: number) => void
+): Promise<string> {
+  const sessionRes = await fetch("/api/shooting/upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      productId,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || "application/octet-stream",
+    }),
+  });
+  const sessionData = await sessionRes.json();
+  if (!sessionData.success || !sessionData.uploadUrl) {
+    throw new Error(sessionData.error || "Failed to initialize upload session");
+  }
+
+  const uploadUrl = sessionData.uploadUrl;
+  const chunkSize = 1024 * 1024 * 5; // 5MB chunks
+  let offset = 0;
+
+  while (offset < file.size) {
+    const chunk = file.slice(offset, offset + chunkSize);
+    const length = chunk.size;
+
+    let retries = 3;
+    let success = false;
+    let responseText = "";
+
+    while (retries > 0 && !success) {
+      try {
+        const res = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Range": `bytes ${offset}-${offset + length - 1}/${file.size}`,
+          },
+          body: chunk,
+        });
+
+        if (res.status === 308) {
+          success = true;
+        } else if (res.ok) {
+          success = true;
+          responseText = await res.text();
+        } else {
+          retries--;
+          if (retries === 0) {
+            throw new Error(`Upload chunk failed with status ${res.status}`);
+          }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      } catch (err) {
+        retries--;
+        if (retries === 0) throw err;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+
+    offset += length;
+    onProgress(Math.round((offset / file.size) * 100));
+
+    if (offset >= file.size && responseText) {
+      const driveFile = JSON.parse(responseText);
+      return driveFile.id;
+    }
+  }
+
+  throw new Error("Upload ended without receiving file ID");
+}
+
 export default function ShootingPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
@@ -191,16 +264,29 @@ export default function ShootingPage() {
 
     setIsUploading(true);
     setError("");
-    setUploadProgress(`Uploading ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}...`);
 
     try {
-      const formData = new FormData();
       for (let i = 0; i < selectedFiles.length; i++) {
-        formData.append("files", selectedFiles[i]);
-      }
+        const file = selectedFiles[i];
+        
+        const fileId = await uploadFileResumable(selectedTask.id, file, (percent) => {
+          setUploadProgress(
+            `Uploading file ${i + 1}/${selectedFiles.length}: "${file.name}" (${percent}%)`
+          );
+        });
 
-      const uploadResult = await uploadRawAssets(selectedTask.id, formData);
-      if (!uploadResult.success) throw new Error(uploadResult.error || "Upload failed");
+        const confirmRes = await fetch("/api/shooting/confirm-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: selectedTask.id,
+            fileId,
+            fileName: file.name,
+          }),
+        });
+        const confirmData = await confirmRes.json();
+        if (!confirmData.success) throw new Error(confirmData.error || `Failed to link "${file.name}"`);
+      }
 
       const markResult = await markAsShot(selectedTask.id);
       if (!markResult.success) throw new Error(markResult.error || "Failed to update status");
@@ -232,15 +318,27 @@ export default function ShootingPage() {
       for (let idx = 0; idx < selectedTasks.length; idx++) {
         const taskId = selectedTasks[idx];
         const task = tasks.find(t => t.id === taskId);
-        setUploadProgress(`[${idx + 1}/${selectedTasks.length}] Processing "${task?.name || taskId}"...`);
-
-        const formData = new FormData();
+        
         for (let i = 0; i < selectedFiles.length; i++) {
-          formData.append("files", selectedFiles[i]);
+          const file = selectedFiles[i];
+          const fileId = await uploadFileResumable(taskId, file, (percent) => {
+            setUploadProgress(
+              `[${idx + 1}/${selectedTasks.length}] "${task?.name || taskId}" - File ${i + 1}/${selectedFiles.length} (${percent}%)`
+            );
+          });
+          
+          const confirmRes = await fetch("/api/shooting/confirm-upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              productId: taskId,
+              fileId,
+              fileName: file.name,
+            }),
+          });
+          const confirmData = await confirmRes.json();
+          if (!confirmData.success) throw new Error(`Failed to link "${file.name}" for "${task?.name || taskId}"`);
         }
-
-        const uploadResult = await uploadRawAssets(taskId, formData);
-        if (!uploadResult.success) throw new Error(`Upload failed for "${task?.name || taskId}"`);
 
         const markResult = await markAsShot(taskId);
         if (!markResult.success) throw new Error(`Status update failed for "${task?.name || taskId}"`);
