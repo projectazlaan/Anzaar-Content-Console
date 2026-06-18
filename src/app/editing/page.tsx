@@ -429,10 +429,10 @@ export default function EditingPage() {
                     </div>
                   </div>
 
-                  {/* Instructions */}
-                  <div className="eh-section">
+                  {/* Instructions - Highlighted */}
+                  <div className="eh-section eh-instruct-section">
                     <div className="eh-section-head">
-                      <FileText size={14} />
+                      <FileText size={16} />
                       <span>EDITING INSTRUCTIONS</span>
                     </div>
                     <div className="eh-instructions">
@@ -939,7 +939,15 @@ export default function EditingPage() {
           text-transform: uppercase;
           letter-spacing: 0.06em;
         }
-        .eh-section-head svg { color: var(--primary); }
+        .eh-instruct-section {
+          background:rgba(6,182,212,0.03);
+          border-radius:var(--radius-lg);
+          padding:0.85rem;
+          border:1px solid rgba(6,182,212,0.1);
+          box-shadow:inset 0 0 30px rgba(6,182,212,0.03);
+        }
+        .eh-instruct-section .eh-section-head { color:#06b6d4; }
+        .eh-instruct-section .eh-section-head svg { color:#06b6d4!important; }
 
         .eh-instructions {
           padding: 1rem;
