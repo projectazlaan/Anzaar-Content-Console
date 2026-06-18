@@ -463,7 +463,7 @@ export default function AdminPage() {
           .ad-table th, .ad-table td { padding: 1rem; }
         }
         @media (max-width: 768px) {
-          .ad-root { padding: 1rem; padding-top: 90px; }
+          .ad-root { padding: 1rem 1rem 1.5rem; padding-top: 0; }
           .ad-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
           .ad-title { font-size: 1.3rem; }
           .ad-stats { width: 100%; }
@@ -477,7 +477,7 @@ export default function AdminPage() {
           .ad-select { font-size: 0.78rem; padding: 0.4rem 0.7rem; }
         }
         @media (max-width: 480px) {
-          .ad-root { padding: 0.7rem; padding-top: 85px; }
+          .ad-root { padding: 0.75rem 0.75rem 1.5rem; padding-top: 0; }
           .ad-table { font-size: 0.65rem; }
         }
       `}</style>

@@ -452,7 +452,7 @@ export default function CategoriesPage() {
           @keyframes spin { to { transform: rotate(360deg); } }
 
           @media (max-width: 768px) {
-            .ca-root { padding: 1rem; padding-top: 90px; }
+            .ca-root { padding: 1rem 1rem 1.5rem; padding-top: 0; }
             .ca-header { flex-direction: column; gap: 1rem; }
             .ca-title { font-size: 1.3rem; }
             .ca-card { padding: 1rem; }
@@ -463,7 +463,7 @@ export default function CategoriesPage() {
             .ca-list { grid-template-columns: 1fr; }
           }
           @media (max-width: 480px) {
-            .ca-root { padding: 0.7rem; padding-top: 85px; }
+            .ca-root { padding: 0.75rem 0.75rem 1.5rem; padding-top: 0; }
             .ca-card { padding: 0.7rem; }
           }
         `}</style>

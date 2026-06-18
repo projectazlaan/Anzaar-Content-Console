@@ -1123,7 +1123,7 @@ export default function SettingsPage() {
             .st-tab span:not(.st-admin-badge) { font-size: 0.7rem; }
           }
           @media (max-width: 768px) {
-            .st-root { padding: 1rem; padding-top: 90px; }
+            .st-root { padding: 1rem 1rem 1.5rem; padding-top: 0; }
             .st-header { flex-direction: column; gap: 1rem; align-items: flex-start; }
             .st-title { font-size: 1.3rem; }
             .st-setting { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
@@ -1136,7 +1136,7 @@ export default function SettingsPage() {
             .st-table th, .st-table td { padding: 0.5rem 0.6rem; }
           }
           @media (max-width: 480px) {
-            .st-root { padding: 0.7rem; padding-top: 85px; }
+            .st-root { padding: 0.75rem 0.75rem 1.5rem; padding-top: 0; }
             .st-card { padding: 1rem; }
           }
         `}</style>

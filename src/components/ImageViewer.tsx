@@ -72,7 +72,18 @@ export default function ImageViewer({ isOpen, onClose, product, initialIndex = 0
   const hasPan = zoomed || dp.x || dp.y;
   const transf = zoom!==1||hasPan ? `scale(${zoom})${hasPan ? ` translate(${dp.x/zoom||0}px,${dp.y/zoom||0}px)` : ''}` : '';
 
-  const dl = () => { const u = getDisplayUrl(cur?.url, cur?.id, 2000); if (u) window.open(u, '_blank'); };
+  const dl = () => {
+    const target = cur?.id || cur?.url;
+    if (!target) return;
+    const match = target.match(/[-\w]{25,}/);
+    if (match) {
+      const dUrl = `/api/download?id=${match[0]}&name=${encodeURIComponent(product?.name || 'download')}`;
+      window.open(dUrl, '_blank');
+    } else {
+      const u = getDisplayUrl(cur?.url, cur?.id, 2000);
+      if (u) window.open(u, '_blank');
+    }
+  };
 
   if (!isOpen || !product) return null;
 

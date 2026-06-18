@@ -1892,7 +1892,7 @@ export default function DesignerPage() {
         .dh-popup-close-btn:hover { color: var(--text-main); background: var(--bg-hover); }
 
         @media (max-width: 768px) {
-          .dh-root { padding: 1rem; padding-top: 90px; }
+          .dh-root { padding: 1rem 1rem 1.5rem; padding-top: 0; }
           .dh-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
           .dh-header-left h1 { font-size: 1.3rem; }
           .dh-tabs { gap: 0.3rem; max-width: 100%; }
@@ -1920,7 +1920,7 @@ export default function DesignerPage() {
         }
 
         @media (max-width: 480px) {
-          .dh-root { padding: 0.7rem; padding-top: 85px; }
+          .dh-root { padding: 0.75rem 0.75rem 1.5rem; padding-top: 0; }
           .dh-kpi-strip { grid-template-columns: 1fr; }
           .dh-panel-upload { gap: 0.5rem; }
           .dh-requests-grid { gap: 0.5rem; }

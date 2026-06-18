@@ -25,3 +25,22 @@ export const getDisplayUrl = (url: string | null | undefined, id?: string | null
   // Fallback to original URL
   return target;
 };
+
+/**
+ * Returns a proxy download URL that forces the browser to download as a file.
+ */
+export const getDownloadUrl = (url: string | null | undefined, id?: string | null, name?: string) => {
+  if (!url && !id) return null;
+
+  const target = id || url;
+  if (!target) return null;
+
+  const match = target.match(/[-\w]{25,}/);
+
+  if (match) {
+    const base = `/api/download?id=${match[0]}`;
+    return name ? `${base}&name=${encodeURIComponent(name)}` : base;
+  }
+
+  return target;
+};

@@ -7,7 +7,7 @@ import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { uploadEditedAsset, getInstructionPresets } from "@/lib/actions";
 import { useImageViewer } from "@/components/ImageViewerProvider";
-import { getDisplayUrl } from "@/lib/utils";
+import { getDisplayUrl, getDownloadUrl } from "@/lib/utils";
 import {
   PenTool,
   Layers,
@@ -46,7 +46,21 @@ export default function EditingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("pending");
   const [presets, setPresets] = useState<string[]>([]);
+  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
+  const [loadedThumbs, setLoadedThumbs] = useState<Set<string>>(new Set());
   const { openViewer } = useImageViewer();
+
+  const getThumbUrl = (task: any) =>
+    getDisplayUrl(task.thumbnailUrl) ||
+    getDisplayUrl(task.mainDesignUrl || task.designUrl, task.mainDesignId || task.designId);
+
+  const handleThumbError = (taskId: string) => {
+    setFailedThumbs(prev => new Set(prev).add(taskId));
+  };
+
+  const handleThumbLoad = (taskId: string) => {
+    setLoadedThumbs(prev => new Set(prev).add(taskId));
+  };
 
   useEffect(() => {
     const q = query(collection(db, "products"), where("status", "==", "Pending Edit"));
@@ -210,8 +224,10 @@ export default function EditingPage() {
                     if (activeTab === "completed") return t.status === "Completed";
                     return true;
                   }).map((task) => {
-                    const thumbUrl = getDisplayUrl(task.thumbnailUrl) || getDisplayUrl(task.mainDesignUrl || task.designUrl, task.mainDesignId || task.designId);
+                    const thumbUrl = getThumbUrl(task);
                     const isActive = selectedTask?.id === task.id;
+                    const thumbFailed = failedThumbs.has(task.id);
+                    const thumbLoaded = loadedThumbs.has(task.id);
                     return (
                       <div
                         key={task.id}
@@ -219,11 +235,35 @@ export default function EditingPage() {
                         onClick={() => setSelectedTask(task)}
                       >
                         <div className="eh-task-thumb" onClick={(e) => { e.stopPropagation(); openViewer(task); }}>
-                          {thumbUrl ? (
-                            <img src={thumbUrl} alt={task.name} />
-                          ) : (
-                            <div className="eh-thumb-ph"><Image size={20} /></div>
-                          )}
+                          {(() => {
+                            const variants = task.variations;
+                            if (variants?.length > 1) {
+                              return (
+                                <div className="eh-thumb-strip">
+                                  {variants.slice(0, 4).map((v: any, i: number) => {
+                                    const vUrl = getDisplayUrl(v.thumbnailUrl) || getDisplayUrl(v.url, v.id);
+                                    if (!vUrl) return null;
+                                    return <img key={i} src={vUrl} alt="" className="eh-thumb-strip-img" />;
+                                  })}
+                                </div>
+                              );
+                            }
+                            if (thumbUrl && !thumbFailed) {
+                              return (
+                                <>
+                                  {!thumbLoaded && <div className="eh-thumb-load" />}
+                                  <img
+                                    src={thumbUrl}
+                                    alt={task.name}
+                                    onLoad={() => handleThumbLoad(task.id)}
+                                    onError={() => handleThumbError(task.id)}
+                                    style={{ display: thumbLoaded ? 'block' : 'none' }}
+                                  />
+                                </>
+                              );
+                            }
+                            return <div className="eh-thumb-ph"><Image size={20} /></div>;
+                          })()}
                         </div>
                         <div className="eh-task-info">
                           <div className="eh-task-name">
@@ -265,13 +305,30 @@ export default function EditingPage() {
                   <div className="eh-editor-header">
                     <div className="eh-editor-preview" onClick={() => openViewer(selectedTask)} style={{ cursor: 'pointer' }}>
                       {(() => {
-                        const thumbUrl = getDisplayUrl(selectedTask.thumbnailUrl) || getDisplayUrl(selectedTask.mainDesignUrl || selectedTask.designUrl, selectedTask.mainDesignId || selectedTask.designId);
-                        return thumbUrl ? (
-                          <img src={thumbUrl} alt={selectedTask.name} />
-                        ) : (
-                          <div className="eh-preview-ph"><Image size={24} /></div>
-                        );
+                        const tu = getThumbUrl(selectedTask);
+                        const tf = failedThumbs.has(selectedTask.id);
+                        const tl = loadedThumbs.has(selectedTask.id);
+                        if (tu && !tf) {
+                          return (
+                            <>
+                              {!tl && <div className="eh-preview-load" />}
+                              <img
+                                src={tu}
+                                alt={selectedTask.name}
+                                onLoad={() => handleThumbLoad(selectedTask.id)}
+                                onError={() => handleThumbError(selectedTask.id)}
+                                style={{ display: tl ? 'block' : 'none' }}
+                              />
+                            </>
+                          );
+                        }
+                        return <div className="eh-preview-ph"><Image size={24} /></div>;
                       })()}
+                      <div className="eh-preview-overlay">
+                        <div className="eh-preview-zoom-icon">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                        </div>
+                      </div>
                     </div>
                     <div className="eh-editor-title-block">
                       <h3 className="eh-editor-title">{selectedTask.name}</h3>
@@ -280,6 +337,17 @@ export default function EditingPage() {
                           {selectedTask.status || "Pending Edit"}
                         </span>
                       </div>
+                      {/* Download Design */}
+                      {(() => {
+                        const ddUrl = getDownloadUrl(selectedTask.designUrl, selectedTask.designId, selectedTask.name);
+                        if (!ddUrl) return null;
+                        return (
+                          <a href={ddUrl} className="eh-dl-btn" download>
+                            <Download size={12} />
+                            <span>Design</span>
+                          </a>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -311,20 +379,54 @@ export default function EditingPage() {
                     </div>
                   )}
 
-                  {/* Raw Assets */}
+                  {/* Raw Assets with Download */}
                   {selectedTask.rawUrls?.length > 0 && (
                     <div className="eh-section">
                       <div className="eh-section-head">
                         <Download size={14} />
-                        <span>RAW ASSETS</span>
+                        <span>RAW ASSETS ({selectedTask.rawUrls.length})</span>
                       </div>
                       <div className="eh-raw-grid">
-                        {selectedTask.rawUrls.map((url: string, i: number) => (
-                          <a key={i} href={url} target="_blank" className="eh-raw-link">
-                            <ExternalLink size={12} />
-                            <span>Asset {i + 1}</span>
-                          </a>
-                        ))}
+                        {selectedTask.rawUrls.map((url: string, i: number) => {
+                          const dlUrl = getDownloadUrl(url, selectedTask.rawIds?.[i], `asset-${i+1}`);
+                          return dlUrl ? (
+                            <a key={i} href={dlUrl} className="eh-raw-link" download>
+                              <Download size={12} />
+                              <span>Download Asset {i + 1}</span>
+                            </a>
+                          ) : (
+                            <a key={i} href={url} target="_blank" className="eh-raw-link">
+                              <ExternalLink size={12} />
+                              <span>Asset {i + 1} (Drive)</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Final Edited File Download */}
+                  {selectedTask.editedUrl && (
+                    <div className="eh-section">
+                      <div className="eh-section-head">
+                        <Check size={14} />
+                        <span>DELIVERED FILE</span>
+                      </div>
+                      <div className="eh-raw-grid">
+                        {(() => {
+                          const dlUrl = getDownloadUrl(selectedTask.editedUrl, null, `${selectedTask.name}-edited`);
+                          return dlUrl ? (
+                            <a href={dlUrl} className="eh-raw-link eh-dl-link" download>
+                              <Download size={14} />
+                              <span>Download Edited File</span>
+                            </a>
+                          ) : (
+                            <a href={selectedTask.editedUrl} target="_blank" className="eh-raw-link">
+                              <ExternalLink size={12} />
+                              <span>View on Drive</span>
+                            </a>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -400,7 +502,7 @@ export default function EditingPage() {
           overflow: hidden;
         }
         @media (max-width: 768px) {
-          .eh-root { padding: 1rem; padding-top: 90px; }
+          .eh-root { padding: 1rem 1rem 1.5rem; padding-top: 0; }
         }
 
         /* ── AMBIENT ── */
@@ -647,7 +749,10 @@ export default function EditingPage() {
         }
         .eh-task-item:hover .eh-task-thumb { transform: scale(1.05); border-color: var(--primary); }
         .eh-task-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .eh-thumb-load { width:100%;height:100%;background:linear-gradient(90deg,var(--bg-deep),var(--bg-card),var(--bg-deep));background-size:200% 100%;animation:eh-shimmer 1.5s infinite; }
         .eh-thumb-ph { color: var(--text-dim); }
+        .eh-thumb-strip { display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;width:100%;height:100%;gap:1px; }
+        .eh-thumb-strip-img { width:100%;height:100%;object-fit:cover; }
         .eh-task-info { flex: 1; min-width: 0; }
         .eh-task-name {
           display: flex; align-items: center; gap: 0.4rem;
@@ -698,12 +803,28 @@ export default function EditingPage() {
           background: var(--bg-deep);
           display: flex; align-items: center; justify-content: center;
           transition: all var(--transition-base);
+          position: relative;
         }
         .eh-editor-preview img { width: 100%; height: 100%; object-fit: cover; }
+        .eh-preview-load { position:absolute;inset:0;background:linear-gradient(90deg,var(--bg-deep),var(--bg-card),var(--bg-deep));background-size:200% 100%;animation:eh-shimmer 1.5s infinite; }
+        .eh-preview-overlay { position:absolute;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s; }
+        .eh-editor-preview:hover .eh-preview-overlay { opacity:1; }
+        .eh-preview-zoom-icon { width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;color:#fff; }
         .eh-preview-ph { color: var(--text-dim); }
         .eh-editor-title-block { flex: 1; min-width: 0; }
         .eh-editor-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin: 0 0 0.3rem; }
-        .eh-editor-meta { display: flex; align-items: center; gap: 0.5rem; }
+        .eh-editor-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap:wrap; }
+        .eh-dl-btn {
+          display:inline-flex;align-items:center;gap:0.3rem;
+          padding:0.25rem 0.6rem;border-radius:6px;
+          background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);
+          color:var(--primary);font-size:0.65rem;font-weight:700;
+          text-decoration:none;transition:all var(--transition-fast);
+          cursor:pointer;
+        }
+        .eh-dl-btn:hover { background:var(--primary);color:#fff;border-color:var(--primary);transform:translateY(-1px); }
+        .eh-dl-link { border-color:var(--accent)!important;color:var(--accent)!important; }
+        .eh-dl-link:hover { background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important; }
         .eh-status-badge {
           padding: 0.15rem 0.55rem;
           border-radius: 100px;

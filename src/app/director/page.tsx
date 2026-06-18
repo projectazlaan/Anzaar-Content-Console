@@ -1282,22 +1282,37 @@ export default function DirectorPage() {
             .dc-kpi-strip { grid-template-columns: repeat(3, 1fr); }
           }
           @media (max-width: 768px) {
-            .dc-kpi-strip { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
-            .dc-kpi-card { padding: 0.7rem; }
-            .dc-kpi-value { font-size: 1.1rem; }
+            .dc-root { padding: 1rem 1rem 1.5rem; padding-top: 0; }
+            .dc-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+            .dc-subtitle { display: none; }
+            .dc-tabs {
+              width: 100%;
+              overflow-x: auto;
+              -webkit-overflow-scrolling: touch;
+              scrollbar-width: none;
+              padding-bottom: 4px;
+              display: flex;
+              flex-wrap: nowrap;
+            }
+            .dc-tabs::-webkit-scrollbar { display: none; }
+            .dc-tab { font-size: 0.72rem; padding: 0.4rem 0.8rem; white-space: nowrap; flex-shrink: 0; }
+            .dc-kpi-strip { grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 1.25rem; }
+            .dc-kpi { padding: 0.75rem 0.6rem; gap: 0.4rem; }
+            .dc-kpi-icon { width: 28px; height: 28px; border-radius: 8px; }
+            .dc-kpi-icon svg { width: 16px; height: 16px; }
+            .dc-kpi-num { font-size: 1.2rem; }
             .dc-kpi-label { font-size: 0.55rem; }
-            .dc-folder-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.8rem; }
-            .dc-folder-item { padding: 0.8rem; }
-            .dc-folder-name { font-size: 0.75rem; }
-            .dc-photos-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); max-height: none; }
-            .dc-photo-item { height: 100px; }
-            .dc-product-row { gap: 0.6rem; padding: 0.7rem; }
-            .dc-row-thumb { width: 44px; height: 44px; }
-            .dc-product-name { font-size: 0.8rem; }
-            .dc-search-box { width: 100%; }
-            .dc-status-badge { font-size: 0.55rem; padding: 0.15rem 0.4rem; }
-            .dc-command-panel { position: static; max-height: none; overflow: visible; margin-top: 1rem; }
-            .dc-select-all { padding: 0.4rem 0.7rem; font-size: 0.7rem; }
+            .dc-body { flex-direction: column; gap: 0.75rem; }
+            .dc-panel-left { width: 100%; }
+            .dc-command-panel { position: static; max-height: none; overflow: visible; width: 100%; }
+            .dc-folder-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.6rem; }
+            .dc-folder-card { border-radius: 10px; }
+            .dc-photos-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); max-height: none; }
+            .dc-photo-card { height: 90px; border-radius: 8px; }
+            .dc-product-row { gap: 0.6rem; padding: 0.75rem; }
+            .dc-product-thumb { width: 44px; height: 44px; border-radius: 8px; }
+            .dc-product-name { font-size: 0.82rem; }
+            .dc-search { width: 100%; }
           }
           .dc-kpi {
             position: relative;
@@ -2405,20 +2420,21 @@ export default function DirectorPage() {
           @keyframes spin { to { transform: rotate(360deg); } }
 
           @media (max-width: 480px) {
-            .dc-root { padding: 0.7rem; padding-top: 85px; }
-            .dc-kpi-strip { grid-template-columns: 1fr; }
-            .dc-kpi-card { padding: 0.6rem; }
-            .dc-folder-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.5rem; }
-            .dc-folder-item { padding: 0.6rem; }
-            .dc-photos-grid { grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); }
-            .dc-photo-item { height: 75px; border-radius: 6px; }
-            .dc-photo-check { width: 20px; height: 20px; top: 3px; right: 3px; }
-            .dc-product-list { gap: 0.3rem; }
-            .dc-product-row { padding: 0.5rem; gap: 0.4rem; }
-            .dc-row-thumb { width: 36px; height: 36px; }
-            .dc-header { gap: 0.75rem; }
-            .dc-tabs { gap: 0.2rem; }
-            .dc-tabs button { font-size: 0.65rem; padding: 0.3rem 0.5rem; }
+            .dc-root { padding: 0.75rem 0.75rem 1.5rem; }
+            .dc-kpi-strip { grid-template-columns: repeat(3, 1fr); gap: 0.3rem; }
+            .dc-kpi { padding: 0.6rem 0.4rem; gap: 0.3rem; }
+            .dc-kpi-icon { width: 24px; height: 24px; border-radius: 6px; }
+            .dc-kpi-icon svg { width: 14px; height: 14px; }
+            .dc-kpi-num { font-size: 1rem; }
+            .dc-kpi-label { font-size: 0.5rem; }
+            .dc-tab { font-size: 0.65rem; padding: 0.3rem 0.6rem; }
+            .dc-folder-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 0.4rem; }
+            .dc-folder-card { border-radius: 8px; }
+            .dc-photos-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
+            .dc-photo-card { height: 70px; border-radius: 6px; }
+            .dc-product-row { padding: 0.6rem; gap: 0.4rem; }
+            .dc-product-thumb { width: 38px; height: 38px; }
+            .dc-header h1 { font-size: 1.25rem; }
           }
         `}</style>
       </DashboardLayout>

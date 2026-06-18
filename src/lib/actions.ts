@@ -66,6 +66,8 @@ export async function createProduct(formData: FormData) {
       status: "Pending Direction",
       designUrl: driveFile.webViewLink,
       designId: driveFile.id,
+      downloadUrl: driveFile.webContentLink || null,
+      thumbnailUrl: driveFile.id ? getDriveImageUrl(driveFile.id) : null,
       createdAt: ts(),
       updatedAt: ts(),
     });
@@ -107,6 +109,7 @@ export async function createBulkProducts(formData: FormData) {
         url: driveFile.webViewLink,
         id: driveFile.id,
         fileName: file.name,
+        downloadUrl: driveFile.webContentLink || null,
       };
     });
 
@@ -124,6 +127,7 @@ export async function createBulkProducts(formData: FormData) {
       status: "Pending Direction",
       mainDesignUrl: uploadedFiles[0].url,
       mainDesignId: uploadedFiles[0].id,
+      mainDownloadUrl: uploadedFiles[0].downloadUrl || null,
       thumbnailUrl: uploadedFiles[0].id ? getDriveImageUrl(uploadedFiles[0].id) : null,
       variations,
       variationCount: uploadedFiles.length,
@@ -134,6 +138,7 @@ export async function createBulkProducts(formData: FormData) {
     if (uploadedFiles.length === 1) {
       productData.designUrl = uploadedFiles[0].url;
       productData.designId = uploadedFiles[0].id;
+      productData.downloadUrl = uploadedFiles[0].downloadUrl || null;
       productData.thumbnailUrl = uploadedFiles[0].id ? getDriveImageUrl(uploadedFiles[0].id) : null;
     }
 
@@ -198,10 +203,12 @@ export async function uploadRawAssets(productId: string, formData: FormData) {
     const results = await Promise.all(uploadPromises);
     const rawUrls = results.map(r => r.webViewLink);
     const rawIds = results.map(r => r.id);
+    const rawDownloadUrls = results.map(r => r.webContentLink || null);
 
     await docRef("products", productId).update({
       rawUrls: rawUrls,
       rawIds: rawIds,
+      rawDownloadUrls: rawDownloadUrls,
       updatedAt: ts(),
     });
 
@@ -234,6 +241,7 @@ export async function uploadEditedAsset(productId: string, formData: FormData) {
 
     await docRef("products", productId).update({
       editedUrl: result.webViewLink,
+      editedDownloadUrl: result.webContentLink || null,
       status: "Pending Review",
       updatedAt: ts(),
     });
