@@ -14,9 +14,10 @@ export async function getDriveService() {
     process.env.FIREBASE_PRIVATE_KEY;
 
   if (serviceAccountEmail && rawPrivateKey) {
+    // Handle all key formats: literal \n, escaped \\n, or real newlines
     const privateKey = rawPrivateKey
-      .replace(/\\n/g, "\n")
-      .replace(/^"|"$/g, "");
+      .replace(/^"|"$/g, "")
+      .replace(/\\n/g, "\n");
 
     const auth = new google.auth.GoogleAuth({
       credentials: {
