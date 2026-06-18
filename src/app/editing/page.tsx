@@ -440,47 +440,16 @@ export default function EditingPage() {
                     </div>
                   </div>
 
-                  {/* Presets */}
-                  {presets.length > 0 && (
-                    <div className="eh-cmd-chips">
-                      <span className="eh-chips-title">Presets:</span>
-                      {presets.map((text, i) => (
-                        <button key={i} className="eh-chip" onClick={() => applyPreset(text)}>
-                          <Zap size={10} />{text}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Raw asset links + Asset Manager */}
+                  {/* Open Asset Manager */}
                   {(() => {
                     const assets = buildAssetList(selectedTask);
                     if (assets.length === 0) return null;
                     return (
-                      <>
-                        <div className="eh-section">
-                          <div className="eh-section-head">
-                            <Download size={14} />
-                            <span>DOWNLOAD ASSETS ({assets.length})</span>
-                          </div>
-                          <div className="eh-raw-grid">
-                            {assets.slice(0, 4).map(a => a.dl ? (
-                              <a key={a.id} href={a.dl} className="eh-raw-link" target="_blank">
-                                <Download size={12} />
-                                <span>{a.label}</span>
-                              </a>
-                            ) : null)}
-                            {assets.length > 4 && (
-                              <span className="eh-raw-more">+{assets.length - 4} more</span>
-                            )}
-                          </div>
-                        </div>
-                        <button className="eh-open-popup-btn" onClick={openAssetPopup}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="2" y1="8" x2="22" y2="8"/><rect x="6" y="12" width="4" height="8"/><rect x="14" y="10" width="4" height="10"/></svg>
-                          <span>Open Asset Manager</span>
-                          <span className="eh-om-badge">{assets.length} files</span>
-                        </button>
-                      </>
+                      <button className="eh-open-popup-btn" onClick={openAssetPopup}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="2" y1="8" x2="22" y2="8"/><rect x="6" y="12" width="4" height="8"/><rect x="14" y="10" width="4" height="10"/></svg>
+                        <span>Open Asset Manager</span>
+                        <span className="eh-om-badge">{assets.length} files</span>
+                      </button>
                     );
                   })()}
 
