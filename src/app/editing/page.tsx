@@ -51,6 +51,7 @@ export default function EditingPage() {
   const [selectedAssets, setSelectedAssets] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [assetPopupOpen, setAssetPopupOpen] = useState(false);
+  const [downloadState, setDownloadState] = useState<{ active: boolean; progress: number; total: number; current: string } | null>(null);
   const { openViewer } = useImageViewer();
 
   const getThumbUrl = (task: any) =>
@@ -116,18 +117,115 @@ export default function EditingPage() {
     }
   };
 
-  const downloadSingle = (dl: string) => {
-    window.open(dl, '_blank');
+  const fetchAndSave = async (url: string, filename: string) => {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Download failed');
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      window.open(url, '_blank');
+    }
   };
 
-  const downloadSelected = () => {
+  const downloadSingle = async (dl: string, label?: string) => {
+    const name = label ? `${label.replace(/[^a-zA-Z0-9._-]/g, '_')}.${dl.match(/\.\w+$/)?.[0] || 'file'}` : 'download';
+    await fetchAndSave(dl, name);
+  };
+
+  const downloadSelected = async () => {
     const assets = getAssetsForSelected().filter(a => selectedAssets.has(a.id));
-    assets.forEach(a => { if (a.dl) window.open(a.dl, '_blank'); });
+    if (assets.length === 0) return;
+    if (assets.length === 1) {
+      await fetchAndSave(assets[0].dl!, `${assets[0].label.replace(/[^a-zA-Z0-9._-]/g, '_')}.file`);
+      return;
+    }
+    setDownloadState({ active: true, progress: 0, total: assets.length, current: 'Preparing ZIP…' });
+    try {
+      const payload = assets.map(a => ({ id: a.dl?.match(/id=([-\w]+)/)?.[1] || a.fileId, name: a.label }));
+      const resp = await fetch('/api/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: payload })
+      });
+      if (!resp.ok) throw new Error('ZIP creation failed');
+      const reader = resp.body?.getReader();
+      if (!reader) throw new Error('No response body');
+      const chunks: any[] = [];
+      let received = 0;
+      const contentLength = +(resp.headers.get('Content-Length') || '0');
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (contentLength) setDownloadState(s => s ? { ...s, progress: Math.round((received / contentLength) * 100), current: `Downloading ZIP (${assets.length} files)…` } : s);
+      }
+      const blob = new Blob(chunks as any, { type: 'application/zip' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'assets.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e: any) {
+      assets.forEach(a => { if (a.dl) window.open(a.dl, '_blank'); });
+    } finally {
+      setDownloadState(null);
+    }
   };
 
-  const downloadAll = () => {
+  const downloadAll = async () => {
     const assets = getAssetsForSelected();
-    assets.forEach(a => { if (a.dl) window.open(a.dl, '_blank'); });
+    if (assets.length === 0) return;
+    if (assets.length === 1) {
+      await fetchAndSave(assets[0].dl!, `${assets[0].label.replace(/[^a-zA-Z0-9._-]/g, '_')}.file`);
+      return;
+    }
+    setDownloadState({ active: true, progress: 0, total: assets.length, current: 'Preparing ZIP…' });
+    try {
+      const payload = assets.map(a => ({ id: a.dl?.match(/id=([-\w]+)/)?.[1] || a.fileId, name: a.label }));
+      const resp = await fetch('/api/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: payload })
+      });
+      if (!resp.ok) throw new Error('ZIP creation failed');
+      const reader = resp.body?.getReader();
+      if (!reader) throw new Error('No response body');
+      const chunks: any[] = [];
+      let received = 0;
+      const contentLength = +(resp.headers.get('Content-Length') || '0');
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+        if (contentLength) setDownloadState(s => s ? { ...s, progress: Math.round((received / contentLength) * 100), current: `Downloading ZIP (${assets.length} files)…` } : s);
+      }
+      const blob = new Blob(chunks as any, { type: 'application/zip' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'assets.zip';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (e: any) {
+      assets.forEach(a => { if (a.dl) window.open(a.dl, '_blank'); });
+    } finally {
+      setDownloadState(null);
+    }
   };
 
   const closePopup = () => {
@@ -440,16 +538,29 @@ export default function EditingPage() {
                     </div>
                   </div>
 
-                  {/* Open Asset Manager */}
+                  {/* Asset Thumbnail Strip + Open Asset Manager */}
                   {(() => {
                     const assets = buildAssetList(selectedTask);
                     if (assets.length === 0) return null;
                     return (
-                      <button className="eh-open-popup-btn" onClick={openAssetPopup}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="2" y1="8" x2="22" y2="8"/><rect x="6" y="12" width="4" height="8"/><rect x="14" y="10" width="4" height="10"/></svg>
-                        <span>Open Asset Manager</span>
-                        <span className="eh-om-badge">{assets.length} files</span>
-                      </button>
+                      <>
+                        <div className="eh-asset-strip">
+                          <div className="eh-asset-strip-inner">
+                            {assets.slice(0, 8).map((a, i) => (
+                              <div key={i} className="eh-asset-strip-thumb" onClick={() => { if (a.dl) fetchAndSave(a.dl, a.label); }} title={a.label}>
+                                {a.thumb ? <img src={a.thumb} alt={a.label} /> : <div className="eh-asset-strip-ph"><Image size={12} /></div>}
+                                <span className={`eh-asset-strip-type ${a.type}`}>{a.type === 'design' ? 'D' : a.type === 'variation' ? 'V' : a.type === 'raw' ? 'R' : 'E'}</span>
+                              </div>
+                            ))}
+                            {assets.length > 8 && <div className="eh-asset-strip-more">+{assets.length - 8}</div>}
+                          </div>
+                        </div>
+                        <button className="eh-open-popup-btn" onClick={openAssetPopup}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="2" y1="8" x2="22" y2="8"/><rect x="6" y="12" width="4" height="8"/><rect x="14" y="10" width="4" height="10"/></svg>
+                          <span>Open Asset Manager</span>
+                          <span className="eh-om-badge">{assets.length} files</span>
+                        </button>
+                      </>
                     );
                   })()}
 
@@ -538,7 +649,7 @@ export default function EditingPage() {
                       return (
                         <div key={asset.id} className={`eh-popup-card ${isSel ? 'eh-popup-card-sel' : ''}`}>
                           {/* Thumbnail */}
-                          <div className="eh-popup-card-thumb" onClick={() => downloadSingle(asset.dl || '')}>
+                          <div className="eh-popup-card-thumb" onClick={() => { if (asset.dl) fetchAndSave(asset.dl, asset.label); }}>
                             {asset.thumb ? (
                               <img src={asset.thumb} alt={asset.label} />
                             ) : (
@@ -555,7 +666,7 @@ export default function EditingPage() {
                               </div>
                             </div>
                             {/* Download icon overlay */}
-                            <div className="eh-popup-card-dl" onClick={(e) => { e.stopPropagation(); downloadSingle(asset.dl || ''); }}>
+                            <div className="eh-popup-card-dl" onClick={(e) => { e.stopPropagation(); if (asset.dl) fetchAndSave(asset.dl, asset.label); }}>
                               <Download size={16} />
                             </div>
                           </div>
@@ -569,19 +680,31 @@ export default function EditingPage() {
 
                 {/* Bottom Bar */}
                 <div className="eh-popup-footer">
-                  <div className="eh-popup-f-left">
-                    <span className="eh-popup-f-stat">{selCount} of {assets.length} selected</span>
-                  </div>
-                  <div className="eh-popup-f-right">
-                    {selCount > 0 && (
-                      <button className="eh-popup-dl-btn eh-popup-dl-btn-sel" onClick={downloadSelected}>
-                        <Download size={16} /><span>Download Selected ({selCount})</span>
-                      </button>
-                    )}
-                    <button className="eh-popup-dl-btn" onClick={downloadAll}>
-                      <Download size={16} /><span>Download All ({assets.length})</span>
-                    </button>
-                  </div>
+                  {downloadState?.active ? (
+                    <div className="eh-popup-dl-progress">
+                      <span className="eh-popup-dl-progress-text">{downloadState.current}</span>
+                      <div className="eh-popup-dl-progress-track">
+                        <div className="eh-popup-dl-progress-fill" style={{ width: `${downloadState.progress}%` }} />
+                      </div>
+                      <span className="eh-popup-dl-progress-pct">{downloadState.progress}%</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="eh-popup-f-left">
+                        <span className="eh-popup-f-stat">{selCount} of {assets.length} selected</span>
+                      </div>
+                      <div className="eh-popup-f-right">
+                        {selCount > 0 && (
+                          <button className="eh-popup-dl-btn eh-popup-dl-btn-sel" onClick={downloadSelected}>
+                            <Download size={16} /><span>Download Selected ({selCount})</span>
+                          </button>
+                        )}
+                        <button className="eh-popup-dl-btn" onClick={downloadAll}>
+                          <Download size={16} /><span>Download All ({assets.length})</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1122,6 +1245,44 @@ export default function EditingPage() {
           color: var(--text-dim);
         }
         .eh-empty p { font-size: 0.88rem; margin: 0; font-weight: 600; }
+
+        /* ── ASSET THUMBNAIL STRIP ── */
+        .eh-asset-strip { margin-bottom:0.5rem; }
+        .eh-asset-strip-inner { display:flex; gap:0.35rem; overflow-x:auto; scrollbar-width:none; padding:0.25rem 0; }
+        .eh-asset-strip-inner::-webkit-scrollbar { display:none; }
+        .eh-asset-strip-thumb {
+          flex-shrink:0; width:42px; height:42px; border-radius:8px; overflow:hidden;
+          border:1px solid var(--border); background:var(--bg-deep); position:relative;
+          cursor:pointer; transition:all var(--transition-fast);
+        }
+        .eh-asset-strip-thumb:hover { transform:scale(1.08); border-color:var(--primary); box-shadow:0 0 8px var(--primary-glow); }
+        .eh-asset-strip-thumb img { width:100%; height:100%; object-fit:cover; }
+        .eh-asset-strip-ph { width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-dim); }
+        .eh-asset-strip-type {
+          position:absolute; top:1px; left:1px;
+          width:14px;height:14px;border-radius:3px;
+          display:flex;align-items:center;justify-content:center;
+          font-size:0.45rem;font-weight:900;
+        }
+        .eh-asset-strip-type.design { background:rgba(99,102,241,0.3);color:#818cf8; }
+        .eh-asset-strip-type.variation { background:rgba(16,185,129,0.3);color:#34d399; }
+        .eh-asset-strip-type.raw { background:rgba(245,158,11,0.3);color:#fbbf24; }
+        .eh-asset-strip-type.edited { background:rgba(168,85,247,0.3);color:#c084fc; }
+        .eh-asset-strip-more {
+          flex-shrink:0; width:42px; height:42px; border-radius:8px;
+          display:flex;align-items:center;justify-content:center;
+          background:var(--bg-hover); border:1px dashed var(--border);
+          font-size:0.6rem;font-weight:800;color:var(--text-dim);
+        }
+
+        /* ── DOWNLOAD PROGRESS BAR ── */
+        .eh-popup-dl-progress {
+          display:flex;align-items:center;gap:0.6rem;width:100%;
+        }
+        .eh-popup-dl-progress-text { font-size:0.72rem;font-weight:700;color:var(--text-main);white-space:nowrap; }
+        .eh-popup-dl-progress-track { flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden; }
+        .eh-popup-dl-progress-fill { height:100%;background:linear-gradient(90deg,#6366f1,#a855f7);border-radius:4px;transition:width 0.3s ease; }
+        .eh-popup-dl-progress-pct { font-size:0.65rem;font-weight:700;color:var(--text-dim);min-width:32px;text-align:right; }
 
         /* ── OPEN POPUP BUTTON ── */
         .eh-open-popup-btn {

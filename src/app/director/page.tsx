@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import RoleGuard from "@/components/RoleGuard";
 import { 
@@ -56,7 +56,7 @@ import { useToast } from "@/components/ToastProvider";
 
 export default function DirectorPage() {
   const [activeTab, setActiveTab] = useState("directions");
-  const { openViewer } = useImageViewer();
+  const { openViewer, openSelectionViewer } = useImageViewer();
   const { showToast } = useToast();
   const [products, setProducts] = useState<any[]>([]);
   const [presets, setPresets] = useState<string[]>([]);
@@ -92,9 +92,14 @@ export default function DirectorPage() {
   const [selectedPhotos, setSelectedPhotos] = useState<Map<string, 'three-quarter' | 'half' | 'full'>>(new Map());
   const [fileManagerBreadcrumb, setFileManagerBreadcrumb] = useState<string[]>([]);
 
+  // Send overlay state
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'success'>('idle');
+
   // Rename State
   const [renameProductId, setRenameProductId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const selectedPhotosRef = useRef(selectedPhotos);
+  selectedPhotosRef.current = selectedPhotos;
 
   const startRename = (product: any) => {
     setRenameProductId(product.id);
@@ -322,7 +327,7 @@ export default function DirectorPage() {
       return;
     }
 
-    setIsSending(true);
+    setSendState('sending');
     try {
       const selectedAssets: Record<string, 'three-quarter' | 'half' | 'full'> = {};
       selectedPhotos.forEach((ratio, url) => {
@@ -331,17 +336,20 @@ export default function DirectorPage() {
       
       const result = await submitSelection(selectedFolder.id, selectedAssets);
       if (result?.success) {
-        setSelectedPhotos(new Map());
-        setSelectedFolder(null);
-        setFileManagerBreadcrumb([]);
-        showToast({ type: 'success', title: 'Sent Successfully!', description: 'Photos sent to Editor' });
-      } else if (result) {
-        showToast({ type: 'error', title: 'Send Failed', description: result.error });
+        setSendState('success');
+        setTimeout(() => {
+          setSendState('idle');
+          setSelectedPhotos(new Map());
+          setSelectedFolder(null);
+          setFileManagerBreadcrumb([]);
+        }, 2000);
+      } else {
+        setSendState('idle');
+        showToast({ type: 'error', title: 'Send Failed', description: result?.error || 'Unknown error' });
       }
     } catch (error: any) {
+      setSendState('idle');
       showToast({ type: 'error', title: 'System Error', description: error.message });
-    } finally {
-      setIsSending(false);
     }
   };
 
@@ -576,7 +584,8 @@ export default function DirectorPage() {
                                           className={`dc-crop-btn ${selectedRatio === ratio ? 'dc-crop-active' : ''}`}
                                           onClick={() => selectCropRatio(photoUrl, ratio)}
                                         >
-                                          {ratio === 'three-quarter' ? '¾' : ratio === 'half' ? '½' : '1:1'}
+                                          <span className="dc-cb-f">{ratio === 'three-quarter' ? '3/4' : ratio === 'half' ? '1/2' : '1:1'}</span>
+                                          <span className="dc-cb-l">{ratio === 'three-quarter' ? 'Third' : ratio === 'half' ? 'Half' : 'Full'}</span>
                                         </button>
                                       ))}
                                     </div>
@@ -596,7 +605,14 @@ export default function DirectorPage() {
                                           url,
                                           id: typeof url === 'string' && url.length > 20 ? url.match(/[-\w]{25,}/)?.[0] : `photo-${i}`
                                         }));
-                                        openViewer({ name: selectedFolder.name, variations }, idx);
+                                        if (activeTab === "selections") {
+                                          openSelectionViewer({ name: selectedFolder.name, variations }, idx, {
+                                            selectedRatiosRef: selectedPhotosRef,
+                                            onSelect: selectCropRatio
+                                          });
+                                        } else {
+                                          openViewer({ name: selectedFolder.name, variations }, idx);
+                                        }
                                       }}
                                     />
                                   ) : (
@@ -1141,6 +1157,45 @@ export default function DirectorPage() {
             </aside>
           </div>
         </div>
+
+        {/* ── Send Overlay ── */}
+        {sendState !== 'idle' && (
+          <div className={`dc-send-overlay ${sendState === 'success' ? 'dc-send-success' : ''}`}>
+            <div className="dc-send-bg" />
+            <div className="dc-send-body">
+              {sendState === 'sending' ? (
+                <>
+                  <div className="dc-send-ring">
+                    <div className="dc-send-ring-inner" />
+                  </div>
+                  <div className="dc-send-glow" />
+                  <div className="dc-send-icon">
+                    <Send size={32} />
+                  </div>
+                  <h2 className="dc-send-title">Sending to Editor</h2>
+                  <p className="dc-send-sub">Transferring <strong>{selectedPhotos.size}</strong> photo{selectedPhotos.size > 1 ? 's' : ''} with crop selections…</p>
+                  <div className="dc-send-bar-track">
+                    <div className="dc-send-bar-fill" />
+                  </div>
+                  <p className="dc-send-hint">Please wait while we process your files</p>
+                </>
+              ) : (
+                <>
+                  <div className="dc-send-ring dc-send-ring-done">
+                    <CheckCircle2 size={44} className="dc-send-check" />
+                  </div>
+                  <h2 className="dc-send-title dc-send-title-success">Sent Successfully!</h2>
+                  <p className="dc-send-sub"><strong>{selectedPhotos.size}</strong> photo{selectedPhotos.size > 1 ? 's' : ''} delivered to Editor</p>
+                  <div className="dc-send-success-sparkles">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="dc-send-sparkle" style={{ '--i': i, '--a': `${i * 45}deg` } as React.CSSProperties} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         <style jsx>{`
           /* ─────────────────────────────────────────────── */
@@ -1766,16 +1821,20 @@ export default function DirectorPage() {
           .dc-photo-card:hover .dc-crop-selector,
           .dc-photo-selected .dc-crop-selector { opacity: 1; transform: translateY(0) scale(1); }
           .dc-crop-btn {
-            padding: 3px 8px;
-            border-radius: 4px;
+            padding: 4px 6px;
+            border-radius: 5px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-light);
             color: var(--text-muted);
-            font-size: 0.65rem; font-weight: 800;
+            font-size: 0.6rem; font-weight: 700;
             cursor: pointer; transition: all var(--transition-fast);
+            display:flex; flex-direction:column; align-items:center; gap:0; line-height:1;
           }
+          .dc-cb-f { font-size:0.7rem; font-weight:800; }
+          .dc-cb-l { font-size:0.45rem; font-weight:500; opacity:0.6; }
           .dc-crop-btn:hover { background: var(--primary-glow); color: var(--text-main); border-color: var(--primary); }
           .dc-crop-active { background: var(--primary) !important; border-color: var(--primary) !important; color: #fff !important; box-shadow: 0 2px 6px var(--primary-glow); }
+          .dc-crop-active .dc-cb-l { opacity:0.8; }
 
           /* Ratio Badge */
           .dc-ratio-badge {
@@ -2427,6 +2486,103 @@ export default function DirectorPage() {
             display: flex;
             gap: 0.6rem;
           }
+
+          /* ── Send Overlay ── */
+          .dc-send-overlay {
+            position: fixed; inset: 0; z-index: 999999;
+            display: flex; align-items: center; justify-content: center;
+            animation: dc-send-fade-in 0.3s ease-out;
+          }
+          .dc-send-overlay.dc-send-success { animation: dc-send-fade-in 0.2s ease-out; }
+          .dc-send-bg {
+            position: absolute; inset: 0;
+            background: rgba(2,6,23,0.85);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+          }
+          .dc-send-body {
+            position: relative; z-index: 2;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 0.6rem; text-align: center;
+            animation: dc-send-pop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+          }
+          .dc-send-overlay.dc-send-success .dc-send-body { animation: dc-send-pop 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+          .dc-send-ring {
+            position: relative;
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+          }
+          .dc-send-ring-inner {
+            position: absolute; inset: 0;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            border-top-color: #818cf8;
+            border-right-color: rgba(99,102,241,0.3);
+            animation: dc-send-spin 0.8s linear infinite;
+          }
+          .dc-send-glow {
+            position: absolute; width: 120px; height: 120px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99,102,241,0.12), transparent 70%);
+            animation: dc-send-pulse 1.5s ease-in-out infinite;
+          }
+          .dc-send-icon {
+            position: absolute;
+            color: #818cf8;
+            animation: dc-send-icon-pulse 1.2s ease-in-out infinite;
+          }
+          .dc-send-title {
+            font-size: 1.3rem; font-weight: 800; margin-top: 0.5rem;
+            background: linear-gradient(135deg, #e2e8f0, #818cf8);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
+          .dc-send-title-success {
+            background: linear-gradient(135deg, #34d399, #10b981);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
+          .dc-send-sub { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+          .dc-send-sub strong { color: var(--text-main); }
+          .dc-send-bar-track {
+            width: 200px; height: 3px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 4px; overflow: hidden; margin-top: 0.3rem;
+          }
+          .dc-send-bar-fill {
+            height: 100%; width: 100%;
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            border-radius: 4px;
+            animation: dc-send-bar 1.5s ease-in-out infinite;
+          }
+          .dc-send-hint { font-size: 0.65rem; color: var(--text-dim); margin: 0; }
+          .dc-send-ring-done {
+            width: 88px; height: 88px;
+            background: rgba(16,185,129,0.1);
+            border: 2px solid rgba(16,185,129,0.2);
+          }
+          .dc-send-check { color: #34d399; animation: dc-send-check-pop 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+          .dc-send-success-sparkles {
+            position: absolute; width: 0; height: 0;
+          }
+          .dc-send-sparkle {
+            position: absolute;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #34d399;
+            left: 0; top: 0;
+            animation: dc-send-sparkle 0.6s ease-out forwards;
+            animation-delay: calc(var(--i) * 0.05s);
+            transform: rotate(var(--a)) translateY(-52px) scale(0);
+          }
+          @keyframes dc-send-fade-in { from { opacity: 0; } to { opacity: 1; } }
+          @keyframes dc-send-pop { from { opacity: 0; transform: scale(0.8) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+          @keyframes dc-send-spin { to { transform: rotate(360deg); } }
+          @keyframes dc-send-pulse { 0%,100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } }
+          @keyframes dc-send-icon-pulse { 0%,100% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.15); opacity: 1; } }
+          @keyframes dc-send-bar { 0% { transform: translateX(-100%); } 50% { transform: translateX(0%); } 100% { transform: translateX(100%); } }
+          @keyframes dc-send-check-pop { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+          @keyframes dc-send-sparkle { 0% { transform: rotate(var(--a)) translateY(0) scale(1); opacity: 1; } 100% { transform: rotate(var(--a)) translateY(-52px) scale(0); opacity: 0; } }
 
           @keyframes success-pop { from { opacity: 0; transform: scale(0.9) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 

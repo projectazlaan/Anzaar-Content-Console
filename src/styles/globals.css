@@ -1300,6 +1300,12 @@ card, .card {
   .iv-tm { width:34px;height:34px; }
 }
 
+.iv-crop { position:absolute;bottom:1rem;left:50%;transform:translateX(-50%);z-index:15;display:flex;flex-direction:row;gap:0.35rem;padding:0.3rem 0.6rem;border-radius:10px;background:rgba(0,0,0,0.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px); }
+.iv-cb { width:48px;height:40px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);color:rgba(255,255,255,0.35);font-size:0.65rem;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;transition:all 0.12s;flex-shrink:0;letter-spacing:0;font-family:inherit;line-height:1; }
+.iv-cb-f { font-size:0.8rem;font-weight:800; }
+.iv-cb-l { font-size:0.5rem;font-weight:500;opacity:0.6; }
+.iv-cb:hover { background:rgba(99,102,241,0.12);color:rgba(255,255,255,0.7); }
+.iv-cb-on { background:rgba(99,102,241,0.45)!important;border-color:#818cf8!important;color:#fff!important;box-shadow:0 0 16px rgba(99,102,241,0.3); }
 /* Keep viewer text white regardless of theme */
 .iv, .iv * { color:#fff !important; }
 [data-theme="light"] .iv,

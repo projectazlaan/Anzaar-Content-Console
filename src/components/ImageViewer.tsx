@@ -4,14 +4,20 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { X, ZoomIn, ZoomOut, Download, ChevronLeft, ChevronRight, ImageOff, Loader2 } from "lucide-react";
 import { getDisplayUrl } from "@/lib/utils";
 
+interface SelectionConfig {
+  selectedRatiosRef: React.MutableRefObject<Map<string, string>>;
+  onSelect: (url: string, ratio: 'three-quarter' | 'half' | 'full') => void;
+}
+
 interface ImageViewerProps {
   isOpen: boolean;
   onClose: () => void;
   product: any;
   initialIndex?: number;
+  selectionConfig?: SelectionConfig | null;
 }
 
-export default function ImageViewer({ isOpen, onClose, product, initialIndex = 0 }: ImageViewerProps) {
+export default function ImageViewer({ isOpen, onClose, product, initialIndex = 0, selectionConfig = null }: ImageViewerProps) {
   const [idx, setIdx] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
   const [err, setErr] = useState(false);
@@ -19,6 +25,7 @@ export default function ImageViewer({ isOpen, onClose, product, initialIndex = 0
   const [drag, setDrag] = useState(false);
   const [dp, setDp] = useState({ x: 0, y: 0 });
   const [ds, setDs] = useState({ x: 0, y: 0 });
+  const [selTick, setSelTick] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
   const outRef = useRef<HTMLDivElement>(null);
 
@@ -107,16 +114,32 @@ export default function ImageViewer({ isOpen, onClose, product, initialIndex = 0
       </div>
 
       {/* STAGE */}
-      <div className="iv-w">
+      <div className="iv-w" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
         {total>1&&<button className="iv-n iv-np" onClick={()=>{setIdx(p=>(p-1+total)%total);setZoom(1);setDp({x:0,y:0});}}><ChevronLeft size={24}/></button>}
         <div className="iv-st" onWheel={e=>{e.preventDefault();setZoom(z=>Math.max(0.5,Math.min(8,z+(e.deltaY>0?-0.1:0.1))));}}
           onMouseDown={md} onMouseMove={mm} onMouseUp={mu} onMouseLeave={mu}
-          style={{cursor:drag?'grabbing':zoomed?'grab':'default'}}>
+          style={{cursor:drag?'grabbing':zoomed?'grab':'default'}}
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
           {loading&&!err&&<div className="iv-ld"><Loader2 size={32} className="iv-sp"/></div>}
           {err?<div className="iv-er"><ImageOff size={40}/><p>Failed to load</p></div>
           :<img ref={imgRef} src={src} className="iv-img" draggable={false}
             style={transf ? {transform:transf} : {}}
+            onClick={(e) => e.stopPropagation()}
             onError={()=>{setErr(true);setLoading(false);}} onLoad={()=>{setErr(false);setLoading(false);}}/>}
+          {selectionConfig && cur?.url && (
+            <div className="iv-crop">
+              {(['three-quarter', 'half', 'full'] as const).map(ratio => {
+                const curSel = selectionConfig.selectedRatiosRef.current.get(cur.url);
+                return (
+                  <button key={ratio}
+                    className={`iv-cb ${curSel === ratio ? 'iv-cb-on' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); selectionConfig.onSelect(cur.url, ratio); setSelTick(t=>t+1); }}>
+                    <span className="iv-cb-f">{ratio === 'three-quarter' ? '3/4' : ratio === 'half' ? '1/2' : '1:1'}</span><span className="iv-cb-l">{ratio === 'three-quarter' ? 'Third' : ratio === 'half' ? 'Half' : 'Full'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         {total>1&&<button className="iv-n iv-nn" onClick={()=>{setIdx(p=>(p+1)%total);setZoom(1);setDp({x:0,y:0});}}><ChevronRight size={24}/></button>}
       </div>

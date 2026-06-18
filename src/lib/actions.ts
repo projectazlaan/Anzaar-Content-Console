@@ -484,43 +484,28 @@ export async function submitSelection(productId: string, selectedAssets: Record<
     const selectedUrls: string[] = [];
     const cropRatios: Record<string, string> = {};
     
-    for (const [url, ratio] of Object.entries(selectedAssets)) {
+    const copyTasks = Object.entries(selectedAssets).map(async ([url, ratio]) => {
       const match = url.match(/[-\w]{25,}/);
-      if (!match) continue;
-      
+      if (!match) return;
       const fileId = match[0];
-      
       try {
-        const fileMetadata = await drive.files.get({
-          fileId,
-          fields: "name, mimeType",
-          supportsAllDrives: true,
-        } as any);
-        
-        const originalName = fileMetadata.data.name || 'image';
-        const nameWithoutExt = originalName.replace(/\.[^/.]+$/, "");
-        const extension = originalName.match(/\.[^/.]+$/)?.[0] || '.jpg';
-        
-        const newName = `${nameWithoutExt}-${ratio}${extension}`;
-        
-        const copiedFile = await drive.files.copy({
-          fileId,
-          requestBody: {
-            name: newName,
-            parents: [driveFolderId],
-          },
-          fields: "id, webViewLink, webContentLink",
-          supportsAllDrives: true,
-        } as any);
-        
-        if (copiedFile.data.id) {
-          selectedUrls.push(copiedFile.data.webContentLink || url);
-          cropRatios[copiedFile.data.id] = ratio;
+        const [fileMeta, copied] = await Promise.all([
+          drive.files.get({ fileId, fields: "name, mimeType", supportsAllDrives: true } as any),
+          drive.files.copy({ fileId, requestBody: { name: `${url.replace(/\.[^/.]+$/, '')}-${ratio}${url.match(/\.[^/.]+$/)?.[0] || '.jpg'}`, parents: [driveFolderId] }, fields: "id, webViewLink, webContentLink", supportsAllDrives: true } as any)
+        ]);
+        if (copied.data.id) {
+          return { url: copied.data.webContentLink || url, id: copied.data.id, ratio };
         }
-      } catch (error) {
-        console.error(`Failed to copy file ${fileId}:`, error);
-        selectedUrls.push(url);
-        cropRatios[fileId] = ratio;
+      } catch {
+        return { url, id: fileId, ratio };
+      }
+    });
+    
+    const results = await Promise.allSettled(copyTasks);
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        selectedUrls.push(r.value.url);
+        cropRatios[r.value.id] = r.value.ratio;
       }
     }
     
