@@ -48,6 +48,8 @@ interface FileWithPreview extends File {
 
 export default function DesignerPage() {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadElapsed, setUploadElapsed] = useState(0);
   const [error, setError] = useState("");
   const [productName, setProductName] = useState("");
   const [category, setCategory] = useState("");
@@ -228,8 +230,19 @@ export default function DesignerPage() {
     if (selectedFiles.length === 0) return;
 
     setIsUploading(true);
+    setUploadProgress(0);
+    setUploadElapsed(0);
     setError("");
-    
+
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      setUploadElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    const progressTimer = setInterval(() => {
+      setUploadProgress(prev => Math.min(prev + 2 + Math.floor(Math.random() * 3), 90));
+    }, selectedFiles.length > 3 ? 600 : 1000);
+
     const formData = new FormData();
     formData.append("name", productName);
     formData.append("category", category);
@@ -244,7 +257,11 @@ export default function DesignerPage() {
 
     try {
       const result = await createBulkProducts(formData);
+      clearInterval(timer);
+      clearInterval(progressTimer);
       setIsUploading(false);
+      setUploadProgress(100);
+      setTimeout(() => setUploadProgress(0), 2000);
       if (result && result.success) {
         showToast({ type: "success", title: "Success!", description: "Products uploaded successfully." });
         setProductName("");
@@ -255,7 +272,10 @@ export default function DesignerPage() {
         setError(result?.error || "Failed to add products.");
       }
     } catch (err: any) {
+      clearInterval(timer);
+      clearInterval(progressTimer);
       setIsUploading(false);
+      setUploadProgress(0);
       setError("System Error: " + err.message);
     }
   };
@@ -562,13 +582,24 @@ export default function DesignerPage() {
                         <span>{error}</span>
                       </div>
                     )}
+                    {isUploading && (
+                      <div className="dh-progress-wrap">
+                        <div className="dh-progress-bar">
+                          <div className="dh-progress-fill" style={{ width: `${uploadProgress}%` }} />
+                        </div>
+                        <div className="dh-progress-info">
+                          <span className="dh-progress-text">{uploadProgress < 100 ? 'Uploading...' : 'Finalizing...'}</span>
+                          <span className="dh-progress-time">{uploadElapsed}s</span>
+                        </div>
+                      </div>
+                    )}
                     <button
                       type="submit"
                       className="dh-submit-btn"
                       disabled={isUploading || selectedFiles.length === 0}
                     >
                       {isUploading ? (
-                        <><Loader2 className="dh-spin" size={18} /><span>Uploading {selectedFiles.length} variation{selectedFiles.length > 1 ? 's' : ''}...</span></>
+                        <><Loader2 className="dh-spin" size={18} /><span>{selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} · {uploadElapsed}s</span></>
                       ) : (
                         <><Upload size={18} /><span>{selectedFiles.length > 1 ? `Upload ${selectedFiles.length} Variations` : 'Initialize Production'}</span></>
                       )}
@@ -1456,6 +1487,12 @@ export default function DesignerPage() {
           font-size: 0.8rem;
           font-weight: 600;
         }
+        .dh-progress-wrap { display:flex;flex-direction:column;gap:0.3rem;padding:0.25rem 0; }
+        .dh-progress-bar { width:100%;height:4px;border-radius:4px;background:var(--border);overflow:hidden; }
+        .dh-progress-fill { height:100%;border-radius:4px;background:linear-gradient(90deg,var(--primary),var(--secondary));transition:width 0.3s ease; }
+        .dh-progress-info { display:flex;justify-content:space-between;align-items:center; }
+        .dh-progress-text { font-size:0.65rem;font-weight:700;color:var(--text-muted); }
+        .dh-progress-time { font-size:0.6rem;font-weight:700;color:var(--text-dim);font-variant-numeric:tabular-nums; }
         .dh-submit-btn {
           display: flex;
           align-items: center;

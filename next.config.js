@@ -11,6 +11,9 @@ const nextConfig = {
   // Enable experimental features for better performance
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
   },
   // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
