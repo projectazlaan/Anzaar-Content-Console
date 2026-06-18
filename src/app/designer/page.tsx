@@ -225,7 +225,7 @@ export default function DesignerPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productName || selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0) return;
 
     setIsUploading(true);
     setError("");
@@ -523,13 +523,12 @@ export default function DesignerPage() {
                 <aside className="dh-upload-sidebar">
                   <form onSubmit={handleSubmit} className="dh-upload-form">
                     <div className="dh-form-group">
-                      <label>Collection / Product Name</label>
+                      <label>Collection / Product Name <span className="dh-optional">(Optional)</span></label>
                       <input
                         type="text"
-                        placeholder="e.g. Summer Silk Kurta v1"
+                        placeholder="e.g. Summer Silk Kurta v1 (leave empty for director to name)"
                         value={productName}
                         onChange={(e) => setProductName(e.target.value)}
-                        required
                       />
                     </div>
                     <div className="dh-form-group">

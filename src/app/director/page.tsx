@@ -22,7 +22,8 @@ import {
   createNotification,
   getDesignerRequests,
   getProductHistory,
-  getMasterTemplates
+  getMasterTemplates,
+  setProductName
 } from "@/lib/actions";
 import { getDisplayUrl } from "@/lib/utils";
 import { 
@@ -47,7 +48,8 @@ import {
   CheckCircle2,
   Clock,
   Activity,
-  RotateCcw
+  RotateCcw,
+  Edit3
 } from "lucide-react";
 import { useImageViewer } from "@/components/ImageViewerProvider";
 import { useToast } from "@/components/ToastProvider";
@@ -89,6 +91,26 @@ export default function DirectorPage() {
   const [selectedFolder, setSelectedFolder] = useState<any>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<Map<string, 'three-quarter' | 'half' | 'full'>>(new Map());
   const [fileManagerBreadcrumb, setFileManagerBreadcrumb] = useState<string[]>([]);
+
+  // Rename State
+  const [renameProductId, setRenameProductId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const startRename = (product: any) => {
+    setRenameProductId(product.id);
+    setRenameValue(product.name || "");
+  };
+
+  const cancelRename = () => {
+    setRenameProductId(null);
+    setRenameValue("");
+  };
+
+  const saveRename = async () => {
+    if (!renameProductId || !renameValue.trim()) { cancelRename(); return; }
+    await setProductName(renameProductId, renameValue.trim());
+    cancelRename();
+  };
 
   // Toggle Selection
   const toggleSelect = (id: string, e: React.MouseEvent) => {
@@ -477,7 +499,24 @@ export default function DirectorPage() {
                                 </div>
                               </div>
                               <div className="dc-folder-info">
-                                <h4>{product.name}</h4>
+                                {renameProductId === product.id ? (
+                                  <div className="dc-rename-inline">
+                                    <input
+                                      value={renameValue}
+                                      onChange={e => setRenameValue(e.target.value)}
+                                      onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') cancelRename(); }}
+                                      onBlur={saveRename}
+                                      autoFocus
+                                      className="dc-rename-input"
+                                      onClick={e => e.stopPropagation()}
+                                    />
+                                  </div>
+                                ) : (
+                                  <h4 className="dc-name-wrap" onClick={() => startRename(product)}>
+                                    <span>{product.name}</span>
+                                    {product.namePending && <span className="dc-name-pending-badge">Name Pending</span>}
+                                  </h4>
+                                )}
                                 <div className="dc-folder-meta">
                                   <Camera size={11} />
                                   <span>{photoCount} photo{photoCount > 1 ? 's' : ''}</span>
@@ -686,8 +725,25 @@ export default function DirectorPage() {
                             </div>
                             <div className="dc-product-info">
                               <div className="dc-product-name">
-                                {product.name}
-                                {hasVariations && <span className="dc-var-badge">{product.variations.length}</span>}
+                                {renameProductId === product.id ? (
+                                  <div className="dc-rename-inline">
+                                    <input
+                                      value={renameValue}
+                                      onChange={e => setRenameValue(e.target.value)}
+                                      onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') cancelRename(); }}
+                                      onBlur={saveRename}
+                                      autoFocus
+                                      className="dc-rename-input"
+                                      onClick={e => e.stopPropagation()}
+                                    />
+                                  </div>
+                                ) : (
+                                  <>
+                                    <span>{product.name}</span>
+                                    {product.namePending && <span className="dc-name-pending-badge">Name Pending</span>}
+                                    {hasVariations && <span className="dc-var-badge">{product.variations.length}</span>}
+                                  </>
+                                )}
                               </div>
                               <div className="dc-product-meta">
                                 <span>{product.category}</span>
@@ -1580,6 +1636,31 @@ export default function DirectorPage() {
           .dc-folder-meta {
             display: flex; align-items: center; gap: 0.4rem;
             font-size: 0.72rem; color: var(--text-muted);
+          }
+          .dc-name-wrap {
+            display:flex;align-items:center;gap:0.4rem;
+            margin:0 0 0.35rem 0;cursor:pointer;
+          }
+          .dc-name-wrap span {
+            font-size:0.88rem;font-weight:700;color:var(--text-main);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          .dc-name-wrap:hover span { color:var(--primary); }
+          .dc-name-pending-badge {
+            display:inline-flex;align-items:center;flex-shrink:0;
+            padding:1px 6px;border-radius:4px;
+            background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);
+            color:#f59e0b;font-size:0.55rem;font-weight:800;
+            animation:dc-name-pulse 2s ease-in-out infinite;
+            text-transform:uppercase;letter-spacing:0.05em;
+          }
+          @keyframes dc-name-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+          .dc-rename-inline { display:flex;align-items:center;min-width:0; }
+          .dc-rename-input {
+            width:100%;padding:0.25rem 0.5rem;border-radius:6px;
+            background:var(--bg-input);border:1.5px solid var(--primary);
+            color:var(--text-main);font-size:0.85rem;font-weight:700;
+            outline:none;
           }
 
           /* Photo View */

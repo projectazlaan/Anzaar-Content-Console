@@ -40,11 +40,14 @@ async function createNotif(data: { title: string; message: string; type?: string
 // --- PRODUCT FLOW ACTIONS ---
 
 export async function createProduct(formData: FormData) {
-  const name = formData.get("name") as string;
+  const rawName = formData.get("name") as string;
   const category = formData.get("category") as string;
   const file = formData.get("file") as File;
 
-  if (!name || !file) throw new Error("Missing required fields");
+  if (!file) throw new Error("Missing required fields");
+
+  const name = rawName?.trim() || `Untitled-${Date.now().toString(36).toUpperCase()}`;
+  const namePending = !rawName?.trim();
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -62,6 +65,7 @@ export async function createProduct(formData: FormData) {
 
     const docRef = await col("products").add({
       name,
+      namePending,
       category,
       status: "Pending Direction",
       designUrl: driveFile.webViewLink,
@@ -72,7 +76,8 @@ export async function createProduct(formData: FormData) {
       updatedAt: ts(),
     });
 
-    createNotif({ title: "New Product Created", message: `${name} has been created and is pending direction`, type: "success", actionType: "product_created" });
+    const msg = namePending ? `Product created — name pending from director` : `${name} has been created and is pending direction`;
+    createNotif({ title: namePending ? "Name Pending" : "New Product Created", message: msg, type: namePending ? "warning" : "success", actionType: "product_created" });
 
     return { success: true, id: docRef.id };
   } catch (error: any) {
@@ -82,13 +87,16 @@ export async function createProduct(formData: FormData) {
 }
 
 export async function createBulkProducts(formData: FormData) {
-  const name = formData.get("name") as string;
+  const rawName = formData.get("name") as string;
   const category = formData.get("category") as string;
   const files = formData.getAll("files") as File[];
 
   try {
-    if (!name || files.length === 0) throw new Error("Missing required fields");
-    
+    if (files.length === 0) throw new Error("Missing required fields");
+
+    const name = rawName?.trim() || `Untitled-${Date.now().toString(36).toUpperCase()}`;
+    const namePending = !rawName?.trim();
+
     const dateStr = new Date().toISOString().split('T')[0];
     const designParentId = await getOrCreateFolder(dateStr, process.env.GOOGLE_DRIVE_DESIGNS_FOLDER_ID as string);
 
@@ -123,6 +131,7 @@ export async function createBulkProducts(formData: FormData) {
 
     const productData: any = {
       name,
+      namePending,
       category,
       status: "Pending Direction",
       mainDesignUrl: uploadedFiles[0].url,
@@ -144,11 +153,27 @@ export async function createBulkProducts(formData: FormData) {
 
     const docRef = await col("products").add(productData);
     
-    createNotif({ title: "Bulk Products Created", message: `${name} created with ${uploadedFiles.length} variations`, type: "success", actionType: "bulk_created" });
+    const msg = namePending ? `Products uploaded — name pending from director` : `${name} created with ${uploadedFiles.length} variations`;
+    createNotif({ title: namePending ? "Name Pending" : "Bulk Products Created", message: msg, type: namePending ? "warning" : "success", actionType: "bulk_created" });
     
-    return { success: true, id: docRef.id, variationCount: uploadedFiles.length };
+    return { success: true, id: docRef.id, variationCount: uploadedFiles.length, namePending };
   } catch (error: any) {
     console.error("Error creating bulk products:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function setProductName(productId: string, newName: string) {
+  if (!newName?.trim()) return { success: false, error: "Name is required" };
+  try {
+    await docRef("products", productId).update({
+      name: newName.trim(),
+      namePending: false,
+      updatedAt: ts(),
+    });
+    createNotif({ title: "Product Named", message: `Product name set to "${newName.trim()}"`, type: "info", actionType: "product_named" });
+    return { success: true };
+  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
