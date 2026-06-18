@@ -158,7 +158,14 @@ export async function createBulkProducts(formData: FormData) {
     
     return { success: true, id: docRef.id, variationCount: uploadedFiles.length, namePending };
   } catch (error: any) {
-    console.error("Error creating bulk products:", error);
+    console.error("===== BULK UPLOAD ERROR =====");
+    console.error("Message:", error.message);
+    console.error("Stack:", error.stack);
+    if (error.response?.data) console.error("Drive API response:", JSON.stringify(error.response.data).slice(0, 2000));
+    if (error.code) console.error("Code:", error.code);
+    if (error.status) console.error("Status:", error.status);
+    console.error("Full error:", JSON.stringify(error, Object.getOwnPropertyNames(error)).slice(0, 2000));
+    console.error("=============================");
     return { success: false, error: error.message };
   }
 }

@@ -1,8 +1,36 @@
 import { google } from "googleapis";
 
-const SCOPES = ["https://www.googleapis.com/auth/drive.file"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/drive",
+];
 
 export async function getDriveService() {
+  // --- Try Service Account first (most reliable, never expires) ---
+  const serviceAccountEmail =
+    process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL;
+  const rawPrivateKey =
+    process.env.GOOGLE_DRIVE_PRIVATE_KEY ||
+    process.env.FIREBASE_PRIVATE_KEY;
+
+  if (serviceAccountEmail && rawPrivateKey) {
+    const privateKey = rawPrivateKey
+      .replace(/\\n/g, "\n")
+      .replace(/^"|"$/g, "");
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: serviceAccountEmail,
+        private_key: privateKey,
+      },
+      scopes: SCOPES,
+    });
+
+    console.log("[Drive] Service Account client configured");
+    return google.drive({ version: "v3", auth });
+  }
+
+  // --- Fallback: OAuth2 ---
   const client_id = process.env.GOOGLE_DRIVE_CLIENT_ID;
   const client_secret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
   const refresh_token = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
@@ -14,10 +42,13 @@ export async function getDriveService() {
       "http://localhost"
     );
     oauth2Client.setCredentials({ refresh_token });
+    console.log("[Drive] OAuth2 client configured with refresh token");
     return google.drive({ version: "v3", auth: oauth2Client });
   }
 
-  throw new Error("Google Drive OAuth2 credentials not configured in .env.local.");
+  throw new Error(
+    "Google Drive credentials not configured. Set GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL and GOOGLE_DRIVE_PRIVATE_KEY in environment variables."
+  );
 }
 
 export async function uploadFileToDrive(
@@ -44,6 +75,20 @@ export async function uploadFileToDrive(
     fields: "id, webViewLink, webContentLink",
     supportsAllDrives: true,
   } as any);
+
+  // Grant 'anyone with link' read access so the site proxy can always serve it
+  if (response.data.id) {
+    try {
+      await drive.permissions.create({
+        fileId: response.data.id,
+        requestBody: { role: "reader", type: "anyone" },
+        supportsAllDrives: true,
+      } as any);
+    } catch (permErr: any) {
+      // Non-fatal — proxy still works via service account auth
+      console.warn("[Drive] Could not set public read permission:", permErr.message);
+    }
+  }
 
   return response.data;
 }
